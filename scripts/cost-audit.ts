@@ -5,9 +5,10 @@
  * one question of each: can this generate a charge? Exits non-zero if anything
  * can. Wire it into CI if you want the guarantee enforced on every push.
  */
+import "./load-env";
 import { readFileSync } from "node:fs";
 import { SOURCES } from "../lib/sources/registry";
-import { isFreeTierModel } from "../lib/config";
+import { isFreeTierModel, config } from "../lib/config";
 
 const PAID_PACKAGES = [
   "openai", "@anthropic-ai/sdk", "cohere-ai", "replicate", "scrapingbee",
@@ -39,7 +40,7 @@ for (const e of PAID_ENV) {
 }
 
 // 3. AI model tier
-const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const model = config.gemini.model;
 if (!isFreeTierModel(model)) problems.push(`GEMINI_MODEL="${model}" is not a free-tier model.`);
 else notes.push(`AI model "${model}" is Flash/Flash-Lite class — free tier.`);
 

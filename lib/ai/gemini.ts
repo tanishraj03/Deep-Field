@@ -53,9 +53,36 @@ export class GeminiFreeProvider implements AIProvider {
   }
 
   /**
-   * Model IDs on the free tier move. If the configured ID is gone we ask the
-   * API which models exist and pick a free-tier-eligible Flash model, rather
-   * than silently failing or drifting onto a paid one.
+   * Can this model id actually serve a generation request on this key?
+   *
+   * Metadata is not a reliable answer. A retired model still returns HTTP 200
+   * from GET /models/<id> and still advertises "generateContent" in
+   * supportedGenerationMethods, while every real call to it returns 404
+   * ("no longer available to new users"). The only honest test is to generate.
+   * One token, once per process, on the resolution path only.
+   */
+  private async canGenerate(id: string): Promise<boolean> {
+    const res = await fetchWithTimeout(
+      `${config.gemini.endpoint}/models/${id}:generateContent?key=${config.gemini.apiKey}`, 8000,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "ok" }] }],
+          generationConfig: { maxOutputTokens: 1 },
+        }),
+      },
+    ).catch(() => null);
+    // A thinking model spends the single token on thought and returns 200 with
+    // no text. That still proves the model serves generation, which is the
+    // only question being asked here.
+    return !!res?.ok;
+  }
+
+  /**
+   * Model IDs on the free tier move. If the configured ID cannot generate we
+   * ask the API which models exist and pick a free-tier-eligible Flash model,
+   * rather than silently failing or drifting onto a paid one.
    */
   private async model(): Promise<string> {
     if (this.resolvedModel) return this.resolvedModel;
@@ -67,11 +94,7 @@ export class GeminiFreeProvider implements AIProvider {
       );
     }
 
-    const probe = await fetchWithTimeout(
-      `${config.gemini.endpoint}/models/${configured}?key=${config.gemini.apiKey}`, 8000,
-    ).catch(() => null);
-
-    if (probe?.ok) { this.resolvedModel = configured; return configured; }
+    if (await this.canGenerate(configured)) { this.resolvedModel = configured; return configured; }
 
     const list = await fetchWithTimeout(
       `${config.gemini.endpoint}/models?key=${config.gemini.apiKey}&pageSize=100`, 9000,
@@ -84,10 +107,16 @@ export class GeminiFreeProvider implements AIProvider {
       .filter((n) => isFreeTierModel(n))
       .filter((n) => !/embedding|aqa|tts|image|vision-only/.test(n));
 
-    const pick = candidates.find((n) => /flash-lite/.test(n)) ?? candidates.find((n) => /flash/.test(n));
-    if (!pick) throw new Error("No free-tier Flash model available on this API key.");
-    this.resolvedModel = pick;
-    return pick;
+    // Flash-Lite first: it is the cheapest free-tier class and, unlike the
+    // thinking Flash models, spends no tokens on reasoning we never read.
+    const ordered = [
+      ...candidates.filter((n) => /flash-lite/.test(n)),
+      ...candidates.filter((n) => !/flash-lite/.test(n) && /flash/.test(n)),
+    ];
+    for (const id of ordered) {
+      if (await this.canGenerate(id)) { this.resolvedModel = id; return id; }
+    }
+    throw new Error("No free-tier Flash model on this API key can serve generateContent.");
   }
 
   private async call<T>(prompt: string, schema: z.ZodType<T>, maxTokens = 900): Promise<T> {
