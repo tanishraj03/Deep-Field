@@ -25,10 +25,7 @@ export const SOURCES: SourceDefinition[] = [
   S({ id: "tiktok-newsroom", name: "TikTok Newsroom", url: "https://newsroom.tiktok.com/en-us/rss.xml", kind: "rss",
       sourceType: "platform-announcement", region: "GLOBAL", platform: "tiktok",
       categories: ["Creator Economy", "Culture"], lane: "platform" }),
-  S({ id: "linkedin-blog", name: "LinkedIn Official Blog", url: "https://blog.linkedin.com/feed", kind: "rss",
-      sourceType: "platform-announcement", region: "GLOBAL", platform: "linkedin",
-      categories: ["Technology", "Media"], lane: "platform" }),
-  S({ id: "reddit-blog", name: "Reddit Blog", url: "https://redditblog.com/feed/", kind: "rss",
+  S({ id: "reddit-blog", name: "Reddit Blog", url: "https://www.redditinc.com/blog/rss.xml", kind: "rss",
       sourceType: "platform-announcement", region: "GLOBAL", platform: "reddit",
       categories: ["Creator Economy", "Culture"], lane: "platform" }),
 
@@ -42,9 +39,6 @@ export const SOURCES: SourceDefinition[] = [
   S({ id: "yourstory", name: "YourStory", url: "https://yourstory.com/feed", kind: "rss",
       sourceType: "industry-publication", region: "IN", platform: "web",
       categories: ["Technology", "Consumer"], lane: "funding" }),
-  S({ id: "vccircle", name: "VCCircle", url: "https://www.vccircle.com/rss/news", kind: "rss",
-      sourceType: "industry-publication", region: "IN", platform: "web",
-      categories: ["Finance"], lane: "funding" }),
   S({ id: "moneycontrol-startup", name: "Moneycontrol Startups",
       url: "https://www.moneycontrol.com/rss/technology.xml", kind: "rss",
       sourceType: "reputable-publication", region: "IN", platform: "web",
@@ -61,27 +55,17 @@ export const SOURCES: SourceDefinition[] = [
   S({ id: "eu-startups", name: "EU-Startups", url: "https://www.eu-startups.com/feed/", kind: "rss",
       sourceType: "industry-publication", region: "EU", platform: "web",
       categories: ["Technology"], lane: "funding" }),
-  S({ id: "techinasia", name: "Tech in Asia", url: "https://www.techinasia.com/feed", kind: "rss",
-      sourceType: "industry-publication", region: "SEA", platform: "web",
-      categories: ["Technology"], lane: "funding" }),
   S({ id: "wamda", name: "Wamda", url: "https://www.wamda.com/feed", kind: "rss",
       sourceType: "industry-publication", region: "ME", platform: "web",
       categories: ["Technology"], lane: "funding" }),
 
   // ── Marketing and brand activity.
-  S({ id: "afaqs", name: "afaqs!", url: "https://www.afaqs.com/rss/news", kind: "rss",
+  S({ id: "afaqs", name: "afaqs!", url: "https://www.afaqs.com/rss", kind: "rss",
       sourceType: "industry-publication", region: "IN", platform: "web",
       categories: ["Media", "Consumer"], lane: "marketing" }),
   S({ id: "socialsamosa", name: "Social Samosa", url: "https://www.socialsamosa.com/rss", kind: "rss",
       sourceType: "industry-publication", region: "IN", platform: "web",
       categories: ["Media", "Creator Economy"], lane: "marketing" }),
-  S({ id: "campaignindia", name: "Campaign India", url: "https://www.campaignindia.in/rss", kind: "rss",
-      sourceType: "industry-publication", region: "IN", platform: "web",
-      categories: ["Media"], lane: "marketing" }),
-  S({ id: "exchange4media", name: "exchange4media",
-      url: "https://www.exchange4media.com/rss/advertising.xml", kind: "rss",
-      sourceType: "industry-publication", region: "IN", platform: "web",
-      categories: ["Media", "Consumer"], lane: "marketing" }),
   S({ id: "marketingdive", name: "Marketing Dive", url: "https://www.marketingdive.com/feeds/news/", kind: "rss",
       sourceType: "industry-publication", region: "US", platform: "web",
       categories: ["Media", "Consumer"], lane: "marketing" }),
@@ -139,6 +123,25 @@ export const SOURCES: SourceDefinition[] = [
       kind: "hn", sourceType: "community", region: "GLOBAL", platform: "web",
       categories: ["Consumer", "AI"], lane: "mixed" }),
 ];
+
+/**
+ * Removed 2026-09-08 after live verification — each was checked directly, not
+ * assumed. None has a free replacement that is not a key, a paid plan or an
+ * anti-bot bypass, all of which this project refuses.
+ *
+ *   LinkedIn Official Blog  blog.linkedin.com/feed and every /rss, /rss.xml,
+ *                           /feed.xml variant serve HTML. LinkedIn no longer
+ *                           publishes a blog feed.
+ *   VCCircle                /rss/news serves HTML with HTTP 200; /feed and
+ *                           /rss return HTTP 500. Feed retired.
+ *   Tech in Asia            HTTP 403 from an AWS ELB on /feed, /rss and
+ *                           /feed/rss. Body is a bare "403 Forbidden".
+ *   Campaign India          /rss serves an HTML index whose own listed feed
+ *                           URLs (RSS/rss.ashx) all return HTTP 404.
+ *   exchange4media          Cloudflare bot challenge (cf-mitigated: challenge,
+ *                           "Just a moment"). Solving it would be anti-bot
+ *                           evasion, which this project does not do.
+ */
 
 export function enabledSources(): SourceDefinition[] {
   return SOURCES.filter((s) => s.enabled);
