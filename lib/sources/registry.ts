@@ -33,7 +33,7 @@ export const SOURCES: SourceDefinition[] = [
       categories: ["Creator Economy", "Culture"], lane: "platform" }),
 
   // ── Funding, India first.
-  S({ id: "entrackr", name: "Entrackr", url: "https://entrackr.com/feed", kind: "rss",
+  S({ id: "entrackr", name: "Entrackr", url: "https://entrackr.com/rss", kind: "rss",
       sourceType: "industry-publication", region: "IN", platform: "web",
       categories: ["Technology", "Finance"], lane: "funding" }),
   S({ id: "inc42", name: "Inc42", url: "https://inc42.com/feed/", kind: "rss",
@@ -72,7 +72,7 @@ export const SOURCES: SourceDefinition[] = [
   S({ id: "afaqs", name: "afaqs!", url: "https://www.afaqs.com/rss/news", kind: "rss",
       sourceType: "industry-publication", region: "IN", platform: "web",
       categories: ["Media", "Consumer"], lane: "marketing" }),
-  S({ id: "socialsamosa", name: "Social Samosa", url: "https://www.socialsamosa.com/feed/", kind: "rss",
+  S({ id: "socialsamosa", name: "Social Samosa", url: "https://www.socialsamosa.com/rss", kind: "rss",
       sourceType: "industry-publication", region: "IN", platform: "web",
       categories: ["Media", "Creator Economy"], lane: "marketing" }),
   S({ id: "campaignindia", name: "Campaign India", url: "https://www.campaignindia.in/rss", kind: "rss",
