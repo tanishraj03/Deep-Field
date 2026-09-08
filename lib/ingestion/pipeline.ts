@@ -149,11 +149,22 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
   if (opts.withAI !== false) {
     const budget = Math.min(opts.limitAI ?? config.ai.maxItemsPerRun, config.ai.maxItemsPerRun);
     const shortlist = items.slice(0, budget);
+    const deadline = Date.now() + config.ai.maxWallClockMs;
+    let interpreted = 0;
 
     for (const item of shortlist) {
+      // Stop before the platform kills us mid-request. Partial interpretation
+      // that is reported is worth more than a run that dies at the timeout.
+      if (Date.now() > deadline) {
+        aiSkipped = true;
+        aiSkipReason =
+          `Interpretation time budget reached — ${interpreted} of ${shortlist.length} items analysed. ` +
+          `The rest keep their deterministic scores.`;
+        break;
+      }
       try {
         if (item.type === "funding") {
-          const a = await provider.analyzeFunding(item); aiRequests++;
+          const a = await provider.analyzeFunding(item); aiRequests++; interpreted++;
           item.analysis = {
             whatHappened: a.whatTheyDo, whyItsMoving: "", creatorOpportunity: "",
             brandOpportunity: "", whyWeCare: a.whyWeCare,
@@ -161,7 +172,7 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
           };
           item.creatorCategories = a.creatorCategories;
         } else if (item.type === "marketing") {
-          const a = await provider.analyzeMarketing(item); aiRequests++;
+          const a = await provider.analyzeMarketing(item); aiRequests++; interpreted++;
           item.analysis = {
             whatHappened: a.whatWereSeeing, whyItsMoving: a.whyNow, creatorOpportunity: a.possiblePitch,
             brandOpportunity: "", whyWeCare: a.whyNow,
@@ -169,7 +180,7 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
           };
           item.creatorCategories = a.creatorCategories;
         } else {
-          const a = await provider.classifyTrend(item); aiRequests++;
+          const a = await provider.classifyTrend(item); aiRequests++; interpreted++;
           item.analysis = {
             whatHappened: a.whatHappened, whyItsMoving: a.whyItsMoving,
             creatorOpportunity: a.creatorOpportunity, brandOpportunity: a.brandOpportunity,

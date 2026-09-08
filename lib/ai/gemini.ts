@@ -32,6 +32,30 @@ const Schemas = {
 };
 
 export class QuotaExhausted extends Error {}
+
+/**
+ * How long Google says to wait, from a 429's RetryInfo detail or the
+ * Retry-After header. Returns null when it says nothing useful.
+ */
+async function retryAfterMs(res: Response): Promise<number | null> {
+  const header = res.headers.get("retry-after");
+  if (header) {
+    const secs = Number(header);
+    if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  }
+  try {
+    const body = (await res.clone().json()) as {
+      error?: { details?: { "@type"?: string; retryDelay?: string }[] };
+    };
+    for (const d of body.error?.details ?? []) {
+      if (typeof d.retryDelay === "string") {
+        const m = d.retryDelay.match(/^([\d.]+)s$/);
+        if (m) return Math.round(parseFloat(m[1]) * 1000);
+      }
+    }
+  } catch { /* body already consumed or not JSON */ }
+  return null;
+}
 export class PaidModelBlocked extends Error {}
 
 /**
@@ -127,7 +151,7 @@ export class GeminiFreeProvider implements AIProvider {
     const budget = await reserve(est);
     if (!budget.ok) throw new QuotaExhausted(budget.reason ?? "AI safety cap reached");
 
-    const res = await fetchWithTimeout(
+    const send = () => fetchWithTimeout(
       `${config.gemini.endpoint}/models/${model}:generateContent?key=${config.gemini.apiKey}`,
       20000,
       {
@@ -141,11 +165,28 @@ export class GeminiFreeProvider implements AIProvider {
             responseMimeType: "application/json",
           },
         }),
+        // Space calls to stay under the free tier's requests-per-minute
+        // ceiling. Without this the pipeline fired every request at once, took
+        // a 429 on roughly the sixteenth, and abandoned AI for the whole run —
+        // which is why about a third of each morning went uninterpreted.
+        minDelayMs: config.ai.minGapMs,
       },
     );
 
+    let res = await send();
+
+    // A 429 is a "wait", not a "stop". Google returns how long to wait; honour
+    // it once. Only a second refusal ends AI for the run — we still never sit
+    // in a retry loop against a rate limit.
     if (res.status === 429) {
-      throw new QuotaExhausted("Gemini free-tier rate limit hit (429). Stopping AI for this run.");
+      const retryMs = await retryAfterMs(res);
+      if (retryMs !== null && retryMs <= config.ai.maxBackoffMs) {
+        await new Promise((r) => setTimeout(r, retryMs));
+        res = await send();
+      }
+    }
+    if (res.status === 429) {
+      throw new QuotaExhausted("Gemini free-tier rate limit reached, and it stayed rate limited after backing off. Stopping AI for this run.");
     }
     if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${truncate(await res.text(), 180)}`);
 

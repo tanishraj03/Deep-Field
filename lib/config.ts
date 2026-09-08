@@ -21,12 +21,30 @@ export const config = {
   },
 
   ai: {
-    maxPerDay: num(process.env.AI_MAX_REQUESTS_PER_DAY, 180),
-    maxPerMonth: num(process.env.AI_MAX_REQUESTS_PER_MONTH, 4000),
+    maxPerDay: num(process.env.AI_MAX_REQUESTS_PER_DAY, 1000),
+    maxPerMonth: num(process.env.AI_MAX_REQUESTS_PER_MONTH, 25000),
     /** Stop at this fraction of the cap so we never brush the real quota. */
     safetyThreshold: Math.min(0.95, num(process.env.AI_SAFETY_THRESHOLD, 0.8)),
     /** Hard ceiling on how many items ever reach the model in one run. */
-    maxItemsPerRun: 24,
+    maxItemsPerRun: num(process.env.AI_MAX_ITEMS_PER_RUN, 40),
+    /**
+     * Minimum spacing between model calls, in ms. The free tier limits
+     * requests per minute, not just per day, so the daily cap alone never
+     * protected a run. 4s ≈ 15 requests/minute.
+     */
+    minGapMs: num(process.env.AI_MIN_GAP_MS, 4000),
+    /** Longest single backoff we will honour after a 429 before giving up. */
+    maxBackoffMs: num(process.env.AI_MAX_BACKOFF_MS, 30_000),
+    /**
+     * Wall-clock budget for the interpretation stage.
+     *
+     * Pacing calls to respect requests-per-minute means 40 items take about
+     * 160s, and a Vercel Hobby function is killed at 60. Rather than being
+     * cut off mid-run and losing the whole response, the loop stops early and
+     * reports how many items it managed — reduced coverage, stated plainly.
+     * Generous locally and in GitHub Actions, where nothing kills the process.
+     */
+    maxWallClockMs: num(process.env.AI_MAX_WALL_CLOCK_MS, process.env.VERCEL ? 40_000 : 600_000),
   },
 
   supabase: {

@@ -18,7 +18,12 @@ export function companySlug(name: string): string {
 
 /** The company a given item is about, if it is about one at all. */
 export function companyOf(item: IntelligenceItem): string | null {
-  return item.funding?.companyName ?? item.marketing?.companyName ?? null;
+  const name = item.funding?.companyName ?? item.marketing?.companyName ?? null;
+  // When the headline named no company, extraction falls back to the source.
+  // A publication is not a company we can pitch, so it must never open a
+  // profile — better no entry than a profile for Entrackr or afaqs!.
+  if (!name || name.toLowerCase() === item.sourceName.toLowerCase()) return null;
+  return name;
 }
 
 export interface TimelineEntry {
