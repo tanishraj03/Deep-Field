@@ -29,9 +29,21 @@ export const trendsAdapter: SourceAdapter = {
     return list.slice(0, 20).map((it) => {
       const title = stripHtml(String(it.title ?? ""));
       const traffic = String(it["ht:approx_traffic"] ?? "").trim();
-      const newsTitle = stripHtml(String(it["ht:news_item"]?.["ht:news_item_title"] ?? ""));
-      const newsUrl = String(it["ht:news_item"]?.["ht:news_item_url"] ?? it.link ?? "");
-      const url = newsUrl || `https://trends.google.com/trending?geo=${def.region}`;
+
+      // ht:news_item repeats, so fast-xml-parser hands back an array whenever a
+      // term has more than one story. Reading .["ht:news_item_title"] off that
+      // array yielded undefined and the item fell back to <link> — which Google
+      // sets to the FEED url on every entry. Every trend therefore shared one
+      // canonical URL and the deduplicator collapsed all twenty into a single
+      // item. That is why the trend lanes were empty.
+      const news = it["ht:news_item"];
+      const firstNews = (Array.isArray(news) ? news[0] : news) as Record<string, unknown> | undefined;
+      const newsTitle = stripHtml(String(firstNews?.["ht:news_item_title"] ?? ""));
+      const newsUrl = String(firstNews?.["ht:news_item_url"] ?? "");
+
+      // Never fall back to it.link: it is the feed URL, identical for every row.
+      const url = newsUrl ||
+        `https://trends.google.com/trending?geo=${def.region}&q=${encodeURIComponent(title)}`;
       const canonical = canonicalUrl(url);
       const measured = traffic ? `${traffic} searches (Google Trends, measured)` : "rising search interest";
       return {

@@ -33,6 +33,14 @@ const TREND_RE = /\b(trend(?:ing|s)?|viral|meme|format|challenge|audio|sound|aes
 const NOISE_RE = /\b(horoscope|weather forecast|match preview|live score|obituary|lottery|recipe of the day)\b/i;
 
 /**
+ * Community feeds carry a lot that is not intelligence: job ads, "rate my
+ * idea", self-promotion and weekly stickies. A hiring post for a social media
+ * intern is not a content trend, so it is filtered at the door rather than
+ * being scored and shown as one.
+ */
+const COMMUNITY_NOISE_RE = /^\s*(\[?(hiring|for hire|job|jobs)\]?\b|\[?(help|advice|question|discussion|rant|vent|meta)\]?\s*[:\-]|(bi-?|fort)?weekly\b|monthly\b|daily\b|megathread|.*\bdiscussion (thread|&|and)\b|what are you working on|rate my|roast my|feedback (on|please)|self[- ]promo)/i;
+
+/**
  * Commentary, not events. A publication's advice column, explainer or listicle
  * is not something that happened, so it cannot be a funding event or a
  * marketing move. Checked only after the funding test has had its say, so a real
@@ -43,11 +51,16 @@ const EDITORIAL_RE = /^\s*(how |why |what |when |where |who )|\b(guide to|a guid
 export function classify(item: RawItem, lane: string): ItemType | null {
   const hay = `${item.title} ${item.summary}`;
   if (NOISE_RE.test(hay)) return null;
+  if (item.sourceType === "community" && COMMUNITY_NOISE_RE.test(item.title)) return null;
   if (isFundingEvent(hay)) return "funding";
 
-  // Everything below is a judgement about what an item IS. Commentary is not
-  // an event, so it is dropped here rather than being filed under a lane.
-  if (EDITORIAL_RE.test(item.title)) return null;
+  // Commentary is not an event — but only the funding and marketing lanes are
+  // asking "what happened". In the social and platform lanes, analysis of a
+  // format or a platform change IS the signal ("Why short-form audio is
+  // shifting", "How creators are using X"), so the editorial filter is not
+  // applied there or it silences the trend lane entirely.
+  const wantsEvents = lane === "funding" || lane === "marketing";
+  if (wantsEvents && EDITORIAL_RE.test(item.title)) return null;
 
   if (lane === "marketing" && MARKETING_RE.test(hay)) return "marketing";
   if (MARKETING_RE.test(hay) && !TREND_RE.test(hay)) return "marketing";

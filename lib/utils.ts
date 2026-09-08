@@ -36,13 +36,37 @@ export function canonicalUrl(raw: string): string {
   }
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">",
+  rsquo: "\u2019", lsquo: "\u2018", rdquo: "\u201d", ldquo: "\u201c",
+  ndash: "\u2013", mdash: "\u2014", hellip: "\u2026", eacute: "\u00e9", nbsp2: " ",
+};
+
+/** Decode numeric and named HTML entities. */
+function decodeEntities(s: string): string {
+  return s.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z][a-zA-Z0-9]*));/g, (m, dec, hex, name) => {
+    if (dec) { const c = Number(dec); return c > 0 && c < 0x110000 ? String.fromCodePoint(c) : m; }
+    if (hex) { const c = parseInt(hex, 16); return c > 0 && c < 0x110000 ? String.fromCodePoint(c) : m; }
+    return NAMED_ENTITIES[String(name).toLowerCase()] ?? m;
+  });
+}
+
+/**
+ * Markup out, readable text in.
+ *
+ * Entities are decoded on both sides of tag-stripping: feeds commonly escape
+ * their markup once (so tags only appear after a decode) and titles carry
+ * numeric entities like &#8217; that rendered literally in the interface.
+ */
 export function stripHtml(s: string): string {
-  return s
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+  const once = decodeEntities(s);
+  return decodeEntities(
+    once
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -103,12 +127,51 @@ export async function pool<T, R>(items: T[], limit: number, fn: (t: T) => Promis
   return out;
 }
 
-export async function fetchWithTimeout(url: string, ms: number, init?: RequestInit) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctl.signal });
-  } finally {
-    clearTimeout(t);
-  }
+/**
+ * Per-host request spacing.
+ *
+ * config.ingestion.minDelayPerHostMs has always documented "we read public
+ * feeds at a walking pace", but nothing read it — the collector fired six
+ * concurrent requests and hosts that group several feeds under one domain got
+ * them all at once. Reddit answered that with HTTP 429 for five sources every
+ * run. Requests to the same host now queue behind each other; different hosts
+ * are still fetched in parallel.
+ */
+const hostQueue = new Map<string, Promise<unknown>>();
+
+function hostOf(url: string): string {
+  try { return new URL(url).host; } catch { return url; }
+}
+
+export async function fetchWithTimeout(
+  url: string,
+  ms: number,
+  init?: RequestInit & { minDelayMs?: number },
+) {
+  const { minDelayMs, ...rest } = init ?? {};
+  const host = hostOf(url);
+  const gap = minDelayMs ?? 0;
+
+  const run = async (): Promise<Response> => {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms);
+    try {
+      return await fetch(url, { ...rest, signal: ctl.signal });
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  if (gap <= 0) return run();
+
+  // Chain onto whatever is already queued for this host, then wait the gap.
+  const prior = hostQueue.get(host) ?? Promise.resolve();
+  const mine = prior
+    .catch(() => undefined)
+    .then(() => new Promise((r) => setTimeout(r, gap)))
+    .then(run);
+  // Keep the chain alive even when a link rejects, so one failure does not
+  // release every queued request at once.
+  hostQueue.set(host, mine.catch(() => undefined));
+  return mine;
 }

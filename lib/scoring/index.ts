@@ -6,9 +6,9 @@ import { clamp01, daysAgo } from "@/lib/utils";
 // Where a component has no evidence behind it, it contributes its neutral value
 // and the item is flagged `scoreIsEstimated` so the UI can say so out loud.
 
-const CREATOR_RE = /\b(creator|influencer|reels?|shorts?|tiktok|ugc|meme|format|viral|audio|podcast|fandom|gen ?z)\b/i;
+const CREATOR_RE = /\b(creator|influencer|reels?|shorts?|tiktok|ugc|meme|format|viral|audio|podcast|fandom|gen ?z|instagram|youtube|snapchat|pinterest|threads|twitch|substack|short-?form|vertical video|livestream|live ?shopping|creator economy|social media|subscriber|follower|engagement)\b/i;
 const BRAND_RE = /\b(brand|campaign|consumer|d2c|retail|shopper|ambassador|launch|marketing)\b/i;
-const CONSUMER_RE = /\b(app|consumer|shopper|d2c|retail|subscription|user growth|downloads)\b/i;
+const CONSUMER_RE = /\b(app|consumer|shopper|shopping|social commerce|checkout|d2c|retail|subscription|user growth|downloads|gifting|festive)\b/i;
 
 function pts(label: string, weight: number, value01: number, note: string): ScoreBreakdown {
   return { label, weight, value: Math.round(clamp01(value01) * weight), note };
