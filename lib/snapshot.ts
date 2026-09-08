@@ -72,6 +72,7 @@ export async function getSystemStatus(): Promise<SystemStatus> {
         ? "CRON_SECRET set — the GitHub Action can trigger ingestion"
         : "Set CRON_SECRET to let the GitHub Action trigger ingestion",
     },
+    briefHourIst: (await repo.getSettings()).briefHourIst,
     lastRun,
   };
 }

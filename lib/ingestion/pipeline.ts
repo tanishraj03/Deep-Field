@@ -110,12 +110,14 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
   const runId = hash(startedAt + Math.random());
 
   if (config.mockData) {
+    // Mock items are NEVER written to the store. They used to be, and because
+    // they carry real publication names in sourceName they became
+    // indistinguishable from real records once a live run followed — the app
+    // then showed invented companies attributed to Entrackr and afaqs!, which
+    // is the one thing this project must never do. Mock is a render-time
+    // substitution only; getSnapshot() swaps it in when config.mockData is set.
     const items = mockItems();
-    const repo = await getRepository();
-    await repo.saveItems(items);
-    const run = mockRun(runId, startedAt, items.length);
-    await repo.saveRun(run);
-    return { run, items };
+    return { run: mockRun(runId, startedAt, items.length), items };
   }
 
   const defs = enabledSources();

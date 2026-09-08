@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, ChevronRight, X } from "lucide-react";
+import { ArrowRight, ChevronRight, Loader2, RefreshCw, X } from "lucide-react";
 import { Capsule, Empty, Eyebrow, Glass, LiveDot, Tag, riseIn, stagger } from "./ui";
 import { cn, istClock, istDate, relativeTime, truncate } from "@/lib/utils";
 import type { IntelligenceItem, Snapshot } from "@/lib/types";
@@ -33,7 +34,68 @@ function StatusLine({ snapshot }: { snapshot: Snapshot }) {
           {run.sourcesFailed} sources unavailable
         </span>
       )}
+      <RefreshButton />
     </div>
+  );
+}
+
+/**
+ * Collect again, now. Reports what came back rather than just spinning —
+ * including a refusal, so a throttled or failed refresh is visible instead of
+ * looking like a page that quietly did nothing.
+ */
+function RefreshButton() {
+  const router = useRouter();
+  const [state, setState] = useState<"idle" | "busy" | "error">("idle");
+  const [note, setNote] = useState("");
+
+  async function refresh() {
+    setState("busy"); setNote("");
+    try {
+      const res = await fetch("/api/refresh", { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.ok) {
+        setState("idle");
+        setNote(`${json.sourcesChecked - json.sourcesFailed}/${json.sourcesChecked} sources`);
+        router.refresh();
+        setTimeout(() => setNote(""), 6000);
+      } else {
+        setState("error");
+        setNote(json.reason ?? `Failed with status ${res.status}`);
+        setTimeout(() => { setState("idle"); setNote(""); }, 8000);
+      }
+    } catch (err) {
+      setState("error");
+      setNote(err instanceof Error ? err.message : "Refresh failed");
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        onClick={refresh}
+        disabled={state === "busy"}
+        aria-label="Collect from all sources again now"
+        className={cn(
+          "press readout inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[0.7rem] font-semibold",
+          "text-faint transition-colors hover:text-ink disabled:opacity-60",
+        )}
+        style={{ background: "rgb(var(--hair) / 0.05)" }}
+      >
+        {state === "busy"
+          ? <Loader2 className="h-3 w-3 animate-spin" />
+          : <RefreshCw className="h-3 w-3" />}
+        {state === "busy" ? "Collecting" : "Refresh"}
+      </button>
+      {note && (
+        <span
+          className="readout text-[0.7rem]"
+          style={{ color: state === "error" ? "rgb(var(--ember))" : "rgb(var(--muted))" }}
+        >
+          {note}
+        </span>
+      )}
+    </span>
   );
 }
 

@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "@/lib/config";
 import type { DailyBrief, IntelligenceItem, SyncRun } from "@/lib/types";
-import type { Repository, SeenRecord, UsageRecord } from "./types";
+import type { AppSettings, Repository, SeenRecord, UsageRecord } from "./types";
+import { rejectFabricated } from "./guard";
 
 /**
  * Supabase free tier. Service-role key is read from a server-only env var and
@@ -46,6 +47,8 @@ export class SupabaseRepository implements Repository {
   }
 
   async saveItems(items: IntelligenceItem[]) {
+    items = rejectFabricated(items);
+    if (!items.length) return;
     if (!items.length) return;
     await this.db.from("intelligence_items").upsert(
       items.map((i) => ({
@@ -124,4 +127,21 @@ export class SupabaseRepository implements Repository {
     else await this.db.from("saved_items").insert({ item_id: id });
     return this.getSaved();
   }
+
+  /**
+   * Settings live in one row keyed "app". The table is created by
+   * supabase/schema.sql; if it is missing we fall back to the env default
+   * rather than failing a run over a preference.
+   */
+  async getSettings(): Promise<AppSettings> {
+    const { data } = await this.db.from("app_settings").select("value").eq("key", "app").maybeSingle();
+    const v = (data?.value ?? {}) as Partial<AppSettings>;
+    return { briefHourIst: v.briefHourIst ?? config.briefHourIst };
+  }
+  async saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+    const merged = { ...(await this.getSettings()), ...patch };
+    await this.db.from("app_settings").upsert({ key: "app", value: merged }, { onConflict: "key" });
+    return merged;
+  }
+
 }

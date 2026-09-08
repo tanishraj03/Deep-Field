@@ -144,3 +144,11 @@ alter table saved_items        enable row level security;
 alter table ai_usage           enable row level security;
 alter table seen_events        enable row level security;
 alter table settings           enable row level security;
+
+-- Operator-changeable settings (brief delivery hour, etc). One row, key = 'app'.
+create table if not exists app_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table app_settings enable row level security;

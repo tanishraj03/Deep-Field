@@ -8,7 +8,11 @@ on:
     - cron: "30 0 * * *"   # 06:00 IST — collect
     - cron: "30 1 * * *"   # 07:00 IST — analyse + score
     - cron: "0  2 * * *"   # 07:30 IST — write the brief
-    - cron: "30 2 * * *"   # 08:00 IST — deliver to Slack
+    # Delivery is checked every hour on the half hour (= :00 IST) and the app
+    # sends only at the hour set in Settings. That is what makes the briefing
+    # time changeable from the interface rather than by editing this file.
+    # A run that is not due exits in about a second without collecting.
+    - cron: "30 * * * *"
   workflow_dispatch:
     inputs:
       stage:
@@ -37,6 +41,7 @@ jobs:
           elif [ "$CRON" = "30 0 * * *" ]; then echo "stage=collect"  >> "$GITHUB_OUTPUT"
           elif [ "$CRON" = "30 1 * * *" ]; then echo "stage=analyse"  >> "$GITHUB_OUTPUT"
           elif [ "$CRON" = "0 2 * * *"  ]; then echo "stage=brief"    >> "$GITHUB_OUTPUT"
+          elif [ "$CRON" = "30 * * * *" ]; then echo "stage=deliver-if-due" >> "$GITHUB_OUTPUT"
           else echo "stage=deliver" >> "$GITHUB_OUTPUT"
           fi
 
@@ -58,6 +63,7 @@ jobs:
             analyse)  QS="" ;;
             brief)    QS="?brief=1" ;;
             deliver)  QS="?brief=1&slack=1" ;;
+            deliver-if-due) QS="?brief=1&slack=1&scheduled=1" ;;
             full)     QS="?brief=1&slack=1" ;;
             *)        QS="" ;;
           esac

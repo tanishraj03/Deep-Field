@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { DailyBrief, IntelligenceItem, SyncRun } from "@/lib/types";
-import type { Repository, SeenRecord, UsageRecord } from "./types";
+import type { AppSettings, Repository, SeenRecord, UsageRecord } from "./types";
+import { rejectFabricated } from "./guard";
+import { config } from "@/lib/config";
 
 interface Store {
   seen: Record<string, SeenRecord>;
@@ -10,6 +12,7 @@ interface Store {
   runs: SyncRun[];
   usage: Record<string, { requests: number; tokens: number }>;
   saved: string[];
+  settings?: Partial<AppSettings>;
 }
 
 const empty = (): Store => ({ seen: {}, items: [], briefs: [], runs: [], usage: {}, saved: [] });
@@ -58,14 +61,19 @@ export class MemoryRepository implements Repository {
 
   async saveItems(items: IntelligenceItem[]) {
     await this.load();
-    const byId = new Map(this.store.items.map((i) => [i.id, i]));
-    for (const i of items) byId.set(i.id, i);
+    const byId = new Map(rejectFabricated(this.store.items).map((i) => [i.id, i]));
+    for (const i of rejectFabricated(items)) byId.set(i.id, i);
     this.store.items = [...byId.values()]
       .sort((a, b) => Date.parse(b.lastUpdatedAt) - Date.parse(a.lastUpdatedAt))
       .slice(0, 600);
     await this.flush();
   }
-  async listItems(limit = 400) { await this.load(); return this.store.items.slice(0, limit); }
+  // Filtered on read as well as write: a store poisoned by an earlier build
+  // heals itself on the next request instead of needing a manual purge.
+  async listItems(limit = 400) {
+    await this.load();
+    return rejectFabricated(this.store.items).slice(0, limit);
+  }
 
   async saveBrief(brief: DailyBrief) {
     await this.load();
@@ -105,4 +113,16 @@ export class MemoryRepository implements Repository {
     await this.flush();
     return this.store.saved;
   }
+
+  async getSettings(): Promise<AppSettings> {
+    await this.load();
+    return { briefHourIst: this.store.settings?.briefHourIst ?? config.briefHourIst };
+  }
+  async saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+    await this.load();
+    this.store.settings = { ...this.store.settings, ...patch };
+    await this.flush();
+    return this.getSettings();
+  }
+
 }

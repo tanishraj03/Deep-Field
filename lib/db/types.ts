@@ -1,5 +1,11 @@
 import type { DailyBrief, IntelligenceItem, SyncRun } from "@/lib/types";
 
+/** Settings an operator can change from the interface, not just from env. */
+export interface AppSettings {
+  /** Hour of day, IST, at which the brief is delivered to Slack. 0-23. */
+  briefHourIst: number;
+}
+
 export interface SeenRecord { id: string; firstSeenAt: string; sourceCount: number; mentions: number }
 
 export interface UsageRecord {
@@ -34,4 +40,8 @@ export interface Repository {
 
   getSaved(): Promise<string[]>;
   toggleSaved(id: string): Promise<string[]>;
+
+  /** Operator-changeable settings. Falls back to env defaults when unset. */
+  getSettings(): Promise<AppSettings>;
+  saveSettings(patch: Partial<AppSettings>): Promise<AppSettings>;
 }

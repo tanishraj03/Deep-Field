@@ -9,5 +9,7 @@ export interface SystemStatus {
   database: { backend: string; persistent: boolean; note: string };
   slack: { connected: boolean; channel: string; note: string };
   cron: { configured: boolean; note: string };
+  /** Delivery hour (IST) the interface should show before it fetches the live value. */
+  briefHourIst: number;
   lastRun: SyncRun | null;
 }

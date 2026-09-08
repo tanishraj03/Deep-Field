@@ -86,6 +86,86 @@ function ActionButton({ label, endpoint, busyLabel }: { label: string; endpoint:
   );
 }
 
+/**
+ * The hour the brief is delivered, IST.
+ *
+ * The GitHub Action checks hourly and the app decides whether the brief is
+ * due, so changing this here genuinely changes when Slack gets it — no cron
+ * expression to edit. When no database is configured the API says so and that
+ * warning is shown rather than swallowed.
+ */
+function BriefTime({ fallbackHour }: { fallbackHour: number }) {
+  const [hour, setHour] = useState<number | null>(null);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((j) => { if (alive && j?.settings) setHour(j.settings.briefHourIst); })
+      .catch(() => { if (alive) setHour(fallbackHour); });
+    return () => { alive = false; };
+  }, [fallbackHour]);
+
+  async function save(next: number) {
+    const previous = hour;
+    setHour(next); setState("saving"); setNote("");
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ briefHourIst: next }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `Failed with status ${res.status}`);
+      setState("saved");
+      if (json.persistent === false && json.note) setNote(json.note);
+      setTimeout(() => setState("idle"), 2000);
+    } catch (err) {
+      setHour(previous);
+      setState("error");
+      setNote(err instanceof Error ? err.message : "Could not save");
+    }
+  }
+
+  const label = (h: number) => `${String(h).padStart(2, "0")}:00`;
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[0.8125rem] text-muted">Delivery time</span>
+        <span className="readout text-[0.8125rem] text-ink">
+          {hour === null ? "—" : `${label(hour)} IST`}
+          {state === "saving" && <Loader2 className="ml-2 inline h-3 w-3 animate-spin" />}
+          {state === "saved" && <Check className="ml-2 inline h-3 w-3" />}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+          <button
+            key={h}
+            onClick={() => save(h)}
+            disabled={state === "saving"}
+            aria-pressed={hour === h}
+            aria-label={`Deliver the brief at ${label(h)} IST`}
+            className={cn(
+              "press rounded-tile px-2 py-1 text-[0.7rem] font-semibold tabular-nums transition-colors disabled:opacity-50",
+              hour === h ? "text-ink" : "text-faint hover:text-muted",
+            )}
+            style={{ background: hour === h ? "rgb(var(--jade) / 0.16)" : "rgb(var(--hair) / 0.035)" }}
+          >
+            {label(h)}
+          </button>
+        ))}
+      </div>
+      {note && (
+        <p className="readout mt-2 text-[0.7rem]" style={{ color: "rgb(var(--ember))" }}>{note}</p>
+      )}
+    </div>
+  );
+}
+
 function FeedPanel() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   useEffect(() => setPrefs(loadPrefs()), []);
@@ -187,9 +267,9 @@ export function SettingsView({ status }: { status: SystemStatus }) {
       {/* Briefing */}
       <Glass className="p-6">
         <Eyebrow className="mb-3">Briefing</Eyebrow>
-        <Row label="Delivery time" value="8:00 AM IST" />
         <Row label="Slack channel" value={status.slack.channel} ok={status.slack.connected} />
         <Row label="Scheduler" value={status.cron.configured ? "GitHub Actions" : "Not configured"} ok={status.cron.configured} />
+        <BriefTime fallbackHour={status.briefHourIst} />
         <p className="mt-2 text-[0.8125rem] text-muted">{status.slack.note}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <ActionButton label="Send test to Slack" busyLabel="Sending" endpoint="/api/slack/test" />

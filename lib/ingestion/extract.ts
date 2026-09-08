@@ -4,19 +4,60 @@ import { guessCompany } from "@/lib/dedup";
 // ── Classification ────────────────────────────────────────────────────────────
 // Plain TypeScript, no model call. The AI budget is reserved for interpretation.
 
-const FUNDING_RE = /\b(raises?|raised|bags?|secures?|closes?|nets?|mops? up|funding round|seed round|series\s+[a-j]\b|pre-?seed|led by|valuation|acqui(?:res?|sition)|invests?\s+\$)/i;
+/**
+ * Funding detection is deliberately two-part.
+ *
+ * "bags", "secures", "closes", "nets" and "lands" are ordinary English before
+ * they are finance. On their own they filed "Hashtag Orange bags marketing
+ * mandate for Frankfinn" and "Salil Gandhi joins Nykaa" as funding events. So
+ * a raise verb only counts when the sentence also carries money or a named
+ * round — the two things a real funding story cannot omit.
+ */
+const RAISE_VERB_RE = /\b(raises?|raised|bags?|secures?|closes?|nets?|mops? up|lands?|picks? up|garners?)\b/i;
+const FUNDING_CONTEXT_RE = /\b(funding round|seed round|series\s+[a-j]\b|pre-?seed|angel round|bridge round|venture round|led by|valuation|pre-money|post-money|funding|investment)\b/i;
+const MONEY_RE = /(?:[$₹€£]\s?\d|\b(?:rs\.?|inr|usd|eur|gbp)\s?\d|\b\d+(?:[.,]\d+)?\s?(?:million|billion|crore|lakh|mn|bn|cr)\b)/i;
+const ACQUIRE_RE = /\bacqui(?:res?|red|sition)\b/i;
+
+/** A funding EVENT, not merely a sentence containing a finance-shaped word. */
+function isFundingEvent(hay: string): boolean {
+  const money = MONEY_RE.test(hay);
+  const round = FUNDING_CONTEXT_RE.test(hay);
+  if (/\b(raises?|raised)\b/i.test(hay) && (money || round)) return true;
+  if (RAISE_VERB_RE.test(hay) && round && money) return true;
+  if (ACQUIRE_RE.test(hay) && money) return true;
+  if (/\binvests?\b/i.test(hay) && money) return true;
+  return false;
+}
 const MARKETING_RE = /\b(campaign|brand ambassador|ambassador|sponsors?(?:hip)?|launches?|unveils?|rebrand|advert|advertis|creative|agency|mandate|activation|ooh|billboard|influencer|creator[- ]led|collab|partnership|festive|ipl|world cup|jingle|film|tvc|媒体)/i;
 const TREND_RE = /\b(trend(?:ing|s)?|viral|meme|format|challenge|audio|sound|aesthetic|slang|reels?|shorts?|algorithm|feed change|creators? are|gen ?z|fandom)/i;
 const NOISE_RE = /\b(horoscope|weather forecast|match preview|live score|obituary|lottery|recipe of the day)\b/i;
 
+/**
+ * Commentary, not events. A publication's advice column, explainer or listicle
+ * is not something that happened, so it cannot be a funding event or a
+ * marketing move. Checked only after the funding test has had its say, so a real
+ * round reported under an explainer-style headline still lands correctly.
+ */
+const EDITORIAL_RE = /^\s*(how |why |what |when |where |who )|\b(guide to|a guide|tips?\b|lessons?\b|explainer|explained|opinion|op-ed|deep ?dive|roundup|round-up|digest|newsletter|webinar|masterclass|interview|podcast|top \d+|best \d+|\d+ (things|ways|reasons|lessons|trends)|vs\.?\s|versus)\b/i;
+
 export function classify(item: RawItem, lane: string): ItemType | null {
   const hay = `${item.title} ${item.summary}`;
   if (NOISE_RE.test(hay)) return null;
-  if (FUNDING_RE.test(hay)) return "funding";
+  if (isFundingEvent(hay)) return "funding";
+
+  // Everything below is a judgement about what an item IS. Commentary is not
+  // an event, so it is dropped here rather than being filed under a lane.
+  if (EDITORIAL_RE.test(item.title)) return null;
+
   if (lane === "marketing" && MARKETING_RE.test(hay)) return "marketing";
   if (MARKETING_RE.test(hay) && !TREND_RE.test(hay)) return "marketing";
   if (TREND_RE.test(hay) || lane === "social" || lane === "platform") return "trend";
-  if (lane === "funding") return "funding";
+
+  // No catch-all. This used to end `if (lane === "funding") return "funding"`,
+  // which made every article a funding publication printed — opinion pieces,
+  // interviews, quarterly-results coverage — into a "funding event". An item
+  // that shows no sign of being a funding, marketing or trend event is not
+  // one, whichever feed it arrived on.
   return null;
 }
 
@@ -32,29 +73,69 @@ const PARTICIPATION_RE = /\b(?:participation from|joined by|along with) ([^.]{3,
 
 /** Approximate INR→USD only to make amounts sortable. Display always uses amountRaw. */
 const INR_PER_USD = 88;
+/** Same caveat: sorting only, never shown. */
+const PER_USD: Record<string, number> = { "€": 0.92, "£": 0.79 };
+
+/**
+ * A money figure sitting in one of these clauses does not describe the size of
+ * the round being reported, even though it is genuinely in the source text.
+ *
+ * This is the difference between "read from source" and "correct". DaMENSCH's
+ * story reads "raises fresh funding at flat valuation of Rs 600 Cr … In May
+ * 2024, the company had raised Rs 21.62 crore (approximately $2.5 million)".
+ * Taking the first match gave $2.5 million — a 2024 round — reported as today's
+ * amount and flagged disclosed. A wrong number carrying a citation is worse
+ * than an honest null, which is what this now produces.
+ */
+const VALUATION_RE = /\b(valuation|valued at|pre-money|post-money|market cap|worth)\b/i;
+const HISTORICAL_RE = /\b(had (?:raised|secured|closed)|previously|last (?:year|month|round)|earlier (?:this|in)|to date|so far|cumulative|since inception|in \d{4}|in (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{4})/i;
+
+interface MoneyHit { raw: string; usd: number; index: number }
+
+/** Every money figure in the text, in order, with where it was found. */
+function moneyHits(text: string): MoneyHit[] {
+  const out: MoneyHit[] = [];
+  const push = (raw: string, usd: number, index: number) => {
+    if (Number.isFinite(usd)) out.push({ raw: raw.trim(), usd, index });
+  };
+  const unitMult = (u: string) =>
+    /^(m|mn|million)$/i.test(u) ? 1e6 : /^(b|bn|billion)$/i.test(u) ? 1e9 : /^k$/i.test(u) ? 1e3 : 1;
+
+  const major = /(?:US)?([$€£])\s?([\d,.]+)\s?(million|mn|m|billion|bn|b|k)?\b/gi;
+  for (const m of text.matchAll(major)) {
+    const base = parseFloat(m[2].replace(/,/g, ""));
+    const inUnits = base * unitMult(m[3] ?? "");
+    push(m[0], m[1] === "$" ? inUnits : inUnits / (PER_USD[m[1]] ?? 1), m.index ?? 0);
+  }
+  const inr = /(?:₹|Rs\.?|INR)\s?([\d,.]+)\s?(crore|cr|lakh|lakhs)\b/gi;
+  for (const m of text.matchAll(inr)) {
+    const base = parseFloat(m[1].replace(/,/g, ""));
+    const rupees = base * (/^cr/i.test(m[2]) ? 1e7 : 1e5);
+    push(m[0], rupees / INR_PER_USD, m.index ?? 0);
+  }
+  return out.sort((a, b) => a.index - b.index);
+}
+
+/** The first money figure that is actually about this round. */
+function roundAmount(text: string): MoneyHit | null {
+  for (const hit of moneyHits(text)) {
+    const before = text.slice(Math.max(0, hit.index - 60), hit.index);
+    const around = text.slice(Math.max(0, hit.index - 140), hit.index + 40);
+    if (VALUATION_RE.test(before)) continue;
+    if (HISTORICAL_RE.test(around)) continue;
+    return hit;
+  }
+  return null;
+}
 
 export function extractFunding(item: RawItem): FundingFacts {
   const hay = `${item.title}. ${item.summary}`;
-  let amountUsd: number | null = null;
-  let amountRaw: string | null = null;
-
-  const usd = hay.match(USD_RE);
-  if (usd) {
-    const base = parseFloat(usd[1].replace(/,/g, ""));
-    const unit = (usd[2] ?? "").toLowerCase();
-    const mult = /^(m|mn|million)$/.test(unit) ? 1e6
-      : /^(b|bn|billion)$/.test(unit) ? 1e9
-      : unit === "k" ? 1e3 : 1;
-    if (Number.isFinite(base)) { amountUsd = base * mult; amountRaw = usd[0].trim(); }
-  } else {
-    const inr = hay.match(INR_CR_RE);
-    if (inr) {
-      const base = parseFloat(inr[1].replace(/,/g, ""));
-      const unit = inr[2].toLowerCase();
-      const rupees = base * (unit.startsWith("cr") ? 1e7 : 1e5);
-      if (Number.isFinite(rupees)) { amountUsd = rupees / INR_PER_USD; amountRaw = inr[0].trim(); }
-    }
-  }
+  // The headline is checked on its own first: a figure in the title is about
+  // the event being reported, and it keeps the currency the publication led
+  // with rather than a USD conversion printed in parentheses further down.
+  const hit = roundAmount(item.title) ?? roundAmount(hay);
+  const amountUsd: number | null = hit ? Math.round(hit.usd) : null;
+  const amountRaw: string | null = hit ? hit.raw : null;
 
   const investors: string[] = [];
   const led = hay.match(INVESTOR_RE);

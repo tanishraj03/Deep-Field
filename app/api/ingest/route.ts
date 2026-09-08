@@ -3,6 +3,14 @@ import { config } from "@/lib/config";
 import { runPipeline } from "@/lib/ingestion/pipeline";
 import { generateBrief } from "@/lib/brief/generate";
 import { formatBrief, sendToSlack } from "@/lib/slack";
+import { getRepository } from "@/lib/db";
+
+/** Current hour in IST, regardless of where the server is. */
+function istHour(now = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false,
+  }).format(now));
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // within the free/Hobby function limit
@@ -37,7 +45,20 @@ export async function POST(req: Request) {
     if (wantBrief || wantSlack) {
       const brief = await generateBrief(items);
       briefId = brief.id;
-      if (wantSlack) slack = await sendToSlack(formatBrief(brief, items));
+      if (wantSlack) {
+        // `scheduled=1` means "the clock asked, not a person". The workflow can
+        // then run hourly and let the app decide when the brief is due, which
+        // is what makes the delivery hour changeable from Settings instead of
+        // only by editing a cron expression.
+        const scheduled = url.searchParams.get("scheduled") === "1";
+        const due = (await (await getRepository()).getSettings()).briefHourIst;
+        const hour = istHour();
+        if (scheduled && hour !== due) {
+          slack = { ok: false, skipped: true, error: `Not due — brief is set for ${String(due).padStart(2, "0")}:00 IST, it is ${String(hour).padStart(2, "0")}:00 IST.` };
+        } else {
+          slack = await sendToSlack(formatBrief(brief, items));
+        }
+      }
     }
 
     return NextResponse.json({

@@ -87,13 +87,32 @@ export function scoreOpportunity(item: IntelligenceItem): {
 
 // ── Relevance, novelty and confidence ─────────────────────────────────────────
 
+/**
+ * How much this item has to do with why the product exists: creators, brands
+ * and the consumers they sell to.
+ *
+ * The gate below matters more than the weights. The previous version started
+ * every item at 0.25 and added 0.15 for being Indian, so anything published in
+ * India cleared the 0.35 filter on origin alone — which is how army-recruitment
+ * search trends and quarterly-results coverage reached a brief written for an
+ * influencer-marketing desk. Subject comes first; region and corroboration
+ * only strengthen an item that is already on topic.
+ */
 export function relevance(c: Cluster): number {
   const hay = `${c.primary.title} ${c.primary.summary}`;
-  let r = 0.25;
-  if (CREATOR_RE.test(hay)) r += 0.25;
-  if (BRAND_RE.test(hay)) r += 0.2;
-  if (CONSUMER_RE.test(hay)) r += 0.15;
-  if (c.primary.region === "IN") r += 0.15;
+  const creator = CREATOR_RE.test(hay);
+  const brand = BRAND_RE.test(hay);
+  const consumer = CONSUMER_RE.test(hay);
+
+  // No creator, brand or consumer signal at all — not this product's subject,
+  // however recent, well-sourced or local it is.
+  if (!creator && !brand && !consumer) return 0;
+
+  let r = 0.15;
+  if (creator) r += 0.3;
+  if (brand) r += 0.2;
+  if (consumer) r += 0.15;
+  if (c.primary.region === "IN") r += 0.1;
   if (c.sources.length > 1) r += 0.1;
   return clamp01(r);
 }
