@@ -1,0 +1,96 @@
+name: Deep Field — Daily Brief
+
+# Runs on GitHub's free minutes. Standard ubuntu-latest runner only —
+# never a larger paid runner. Total usage is a handful of minutes a month.
+on:
+  schedule:
+    # GitHub cron is UTC. IST = UTC + 5:30.
+    - cron: "30 0 * * *"   # 06:00 IST — collect
+    - cron: "30 1 * * *"   # 07:00 IST — analyse + score
+    - cron: "0  2 * * *"   # 07:30 IST — write the brief
+    - cron: "30 2 * * *"   # 08:00 IST — deliver to Slack
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Which stage to run"
+        required: true
+        default: "full"
+        type: choice
+        options: [collect, analyse, brief, deliver, full]
+
+concurrency:
+  group: daily-intelligence
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Decide stage
+        id: stage
+        run: |
+          CRON="${{ github.event.schedule }}"
+          MANUAL="${{ inputs.stage }}"
+          if [ -n "$MANUAL" ]; then
+            echo "stage=$MANUAL" >> "$GITHUB_OUTPUT"
+          elif [ "$CRON" = "30 0 * * *" ]; then echo "stage=collect"  >> "$GITHUB_OUTPUT"
+          elif [ "$CRON" = "30 1 * * *" ]; then echo "stage=analyse"  >> "$GITHUB_OUTPUT"
+          elif [ "$CRON" = "0 2 * * *"  ]; then echo "stage=brief"    >> "$GITHUB_OUTPUT"
+          else echo "stage=deliver" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger the pipeline
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          STAGE: ${{ steps.stage.outputs.stage }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APP_URL:-}" ]; then
+            echo "::error::APP_URL secret is not set. Add it in Settings → Secrets → Actions."
+            exit 1
+          fi
+
+          case "$STAGE" in
+            collect)  QS="" ;;
+            analyse)  QS="" ;;
+            brief)    QS="?brief=1" ;;
+            deliver)  QS="?brief=1&slack=1" ;;
+            full)     QS="?brief=1&slack=1" ;;
+            *)        QS="" ;;
+          esac
+
+          echo "Stage: $STAGE → POST ${APP_URL}/api/ingest${QS}"
+
+          HTTP=$(curl -sS -o response.json -w "%{http_code}" \
+            -X POST "${APP_URL}/api/ingest${QS}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            --max-time 120 --retry 2 --retry-delay 20 --retry-connrefused)
+
+          echo "HTTP $HTTP"
+          cat response.json
+
+          # A failed source is normal and must not fail the workflow.
+          # Only a non-2xx response from our own app is a real failure.
+          if [ "$HTTP" -lt 200 ] || [ "$HTTP" -ge 300 ]; then
+            echo "::error::Ingestion endpoint returned $HTTP"
+            exit 1
+          fi
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### Daily Intelligence — ${{ steps.stage.outputs.stage }}"
+            echo ""
+            if [ -f response.json ]; then
+              echo '```json'
+              cat response.json
+              echo '```'
+            else
+              echo "No response captured."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
