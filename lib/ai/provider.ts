@@ -1,4 +1,4 @@
-import type { DailyBrief, IntelligenceItem } from "@/lib/types";
+import type { ContentBucket, DailyBrief, IntelligenceItem } from "@/lib/types";
 
 export interface TrendAnalysis {
   whatHappened: string;
@@ -41,4 +41,6 @@ export interface AIProvider {
   generateCompanySummary(name: string, items: IntelligenceItem[]): Promise<string>;
   generateDailyBrief(items: IntelligenceItem[]): Promise<Omit<DailyBrief, "id" | "date" | "generatedAt">>;
   generateSignal(items: IntelligenceItem[]): Promise<SignalOutput>;
+  /** Name the content patterns visible in today's items. Interpretation only. */
+  deriveContentBuckets(items: IntelligenceItem[]): Promise<Omit<ContentBucket, "generatedBy">[]>;
 }

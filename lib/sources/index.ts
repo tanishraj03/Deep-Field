@@ -2,6 +2,7 @@ import { rssAdapter } from "./rss";
 import { redditAdapter } from "./reddit";
 import { trendsAdapter } from "./trends";
 import { hnAdapter } from "./hn";
+import { youtubeAdapter } from "./youtube";
 import type { SourceAdapter, SourceDefinition } from "./types";
 
 const ADAPTERS: Record<SourceDefinition["kind"], SourceAdapter> = {
@@ -9,6 +10,7 @@ const ADAPTERS: Record<SourceDefinition["kind"], SourceAdapter> = {
   reddit: redditAdapter,
   trends: trendsAdapter,
   hn: hnAdapter,
+  youtube: youtubeAdapter,
 };
 
 export function adapterFor(def: SourceDefinition): SourceAdapter {

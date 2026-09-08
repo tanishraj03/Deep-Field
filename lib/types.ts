@@ -144,6 +144,21 @@ export interface IntelligenceItem {
   signalLabel: "EARLY SIGNAL" | "PUBLIC WEB SIGNAL" | "SOCIAL SIGNAL" | "REPORTED";
 }
 
+/**
+ * A recurring content pattern observed across today's items — the "what should
+ * we actually make" layer. Interpretation, never fact: every bucket must cite
+ * the items it was drawn from so a reader can check the evidence themselves.
+ */
+export interface ContentBucket {
+  name: string;
+  whyItWorks: string;
+  format: "short-form" | "long-form" | "both";
+  platforms: string[];
+  /** Titles of the collected items this pattern was read from. */
+  evidence: string[];
+  generatedBy: "gemini" | "rules";
+}
+
 export interface DailyBrief {
   id: string;
   date: string;
@@ -155,6 +170,7 @@ export interface DailyBrief {
   whosSpending: string[];
   whoToTalkTo: string[];
   watch: string[];
+  contentBuckets: ContentBucket[];
 }
 
 export interface SourceRun {

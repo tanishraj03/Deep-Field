@@ -1,4 +1,4 @@
-import type { DailyBrief, IntelligenceItem } from "@/lib/types";
+import type { ContentBucket, DailyBrief, IntelligenceItem } from "@/lib/types";
 import { truncate } from "@/lib/utils";
 import type {
   AIProvider, FundingAnalysis, MarketingAnalysis, OpportunityAnalysis, SignalOutput, TrendAnalysis,
@@ -108,7 +108,40 @@ export class RulesProvider implements AIProvider {
       whosSpending: of("marketing").slice(0, 3).map(line),
       whoToTalkTo: [...items].filter((i) => (i.opportunityScore ?? 0) > 0).sort(byScore).slice(0, 3)
         .map((i) => `${i.funding?.companyName ?? i.marketing?.companyName ?? truncate(i.title, 40)} — ${i.opportunityScore}/100`),
+      contentBuckets: [],
       watch: items.filter((i) => i.signalLabel === "EARLY SIGNAL").slice(0, 3).map(line),
     };
   }
+
+  /**
+   * Deterministic fallback: group the day's items by the categories they were
+   * already tagged with and describe the group. No pattern is claimed beyond
+   * what the counts support, and every bucket cites real titles.
+   */
+  async deriveContentBuckets(items: IntelligenceItem[]): Promise<Omit<ContentBucket, "generatedBy">[]> {
+    const byCategory = new Map<string, IntelligenceItem[]>();
+    for (const i of items) {
+      for (const c of i.categories.slice(0, 2)) {
+        byCategory.set(c, [...(byCategory.get(c) ?? []), i]);
+      }
+    }
+    return [...byCategory.entries()]
+      .filter(([, group]) => group.length >= 2)
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 4)
+      .map(([category, group]) => {
+        const shorts = group.filter((i) => i.platform === "youtube" || i.platform === "tiktok").length;
+        const platforms = [...new Set(group.map((i) => i.platform))].filter((p) => p !== "web");
+        return {
+          name: `${category} activity`,
+          whyItWorks:
+            `${group.length} items in ${category} today across ${platforms.length || 1} platform(s). ` +
+            `Grouped by category from collected items — no pattern inferred beyond the count.`,
+          format: (shorts > group.length / 2 ? "short-form" : "both") as "short-form" | "both",
+          platforms: platforms.length ? platforms : ["web"],
+          evidence: group.slice(0, 4).map((i) => i.title),
+        };
+      });
+  }
+
 }

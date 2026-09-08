@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { config, isFreeTierModel } from "@/lib/config";
 import { fetchWithTimeout, truncate } from "@/lib/utils";
-import type { DailyBrief, IntelligenceItem } from "@/lib/types";
+import type { ContentBucket, DailyBrief, IntelligenceItem } from "@/lib/types";
 import { prompts } from "./prompts";
 import { reserve } from "./usage";
 import type {
@@ -29,6 +29,21 @@ const Schemas = {
     whosSpending: strArr, whoToTalkTo: strArr, watch: strArr,
   }),
   summary: z.object({ summary: z.string() }),
+  // Models answer this one either as {"buckets":[…]} or as a bare […]. Both are
+  // valid readings of the instruction, so accept either rather than discarding
+  // a good response over its wrapper.
+  buckets: z.preprocess(
+    (v) => (Array.isArray(v) ? { buckets: v } : v),
+    z.object({
+      buckets: z.array(z.object({
+        name: z.string(),
+        whyItWorks: z.string().default(""),
+        format: z.string().default("both"),
+        platforms: strArr,
+        evidence: strArr,
+      })).default([]),
+    }),
+  ),
 };
 
 export class QuotaExhausted extends Error {}
@@ -241,6 +256,32 @@ export class GeminiFreeProvider implements AIProvider {
   generateSignal(items: IntelligenceItem[]): Promise<SignalOutput> {
     return this.call(prompts.signal(items), Schemas.signal, 700);
   }
+  /**
+   * Content buckets are pattern-naming, so the evidence list is verified
+   * against real item titles before it is returned. A cited title the model
+   * invented is dropped, and a bucket left with no evidence is dropped with
+   * it — an unsupported pattern is exactly the thing this must not print.
+   */
+  async deriveContentBuckets(items: IntelligenceItem[]): Promise<Omit<ContentBucket, "generatedBy">[]> {
+    type BucketsOut = { buckets: { name: string; whyItWorks?: string; format?: string; platforms?: string[]; evidence?: string[] }[] };
+    const out = await this.call(prompts.contentBuckets(items), Schemas.buckets as unknown as z.ZodType<BucketsOut>, 1200);
+    const known = new Set(items.map((i) => i.title.toLowerCase().trim()));
+    const asFormat = (v: string): ContentBucket["format"] =>
+      v === "short-form" || v === "long-form" ? v : "both";
+    return (out.buckets ?? [])
+      .map((b) => ({
+        name: b.name,
+        whyItWorks: b.whyItWorks ?? "",
+        format: asFormat(b.format ?? "both"),
+        platforms: (b.platforms ?? []).filter(
+          (p) => p && !/^not publicly disclosed$/i.test(p.trim()),
+        ),
+        evidence: (b.evidence ?? []).filter((e) => known.has(e.toLowerCase().trim())),
+      }))
+      .filter((b) => b.name && b.evidence.length > 0)
+      .slice(0, 5);
+  }
+
   async generateDailyBrief(items: IntelligenceItem[]): Promise<Omit<DailyBrief, "id" | "date" | "generatedAt">> {
     const b = await this.call(prompts.dailyBrief(items), Schemas.brief, 1400);
     return {
@@ -250,6 +291,8 @@ export class GeminiFreeProvider implements AIProvider {
       whosSpending: b.whosSpending ?? [],
       whoToTalkTo: b.whoToTalkTo ?? [],
       watch: b.watch ?? [],
+      // Filled by generateBrief, which owns the extra call and its fallback.
+      contentBuckets: [],
       theSignal: { headline: "", reasoning: "", generatedBy: "gemini" },
     };
   }

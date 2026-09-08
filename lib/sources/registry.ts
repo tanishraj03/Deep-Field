@@ -121,6 +121,38 @@ export const SOURCES: SourceDefinition[] = [
       sourceType: "community", region: "GLOBAL", platform: "reddit",
       categories: ["Creator Economy", "Media"], lane: "social" }),
 
+  // ── Measured content performance. The only source that reports what is
+  //    actually being watched, with the platform's own numbers attached.
+  //    Needs a free YouTube Data API key; without one these report as
+  //    unavailable rather than guessing.
+  S({ id: "yt-short-in", name: "YouTube Top Shorts (India)",
+      url: "youtube://mostPopular?regionCode=IN&form=short&top=5", kind: "youtube",
+      sourceType: "platform-announcement", region: "IN", platform: "youtube",
+      categories: ["Culture", "Entertainment", "Creator Economy"], lane: "social" }),
+  S({ id: "yt-long-in", name: "YouTube Top Long-form (India)",
+      url: "youtube://mostPopular?regionCode=IN&form=long&top=5", kind: "youtube",
+      sourceType: "platform-announcement", region: "IN", platform: "youtube",
+      categories: ["Culture", "Entertainment", "Creator Economy"], lane: "social" }),
+  S({ id: "yt-short-us", name: "YouTube Top Shorts (US)",
+      url: "youtube://mostPopular?regionCode=US&form=short&top=5", kind: "youtube",
+      sourceType: "platform-announcement", region: "US", platform: "youtube",
+      categories: ["Culture", "Entertainment", "Creator Economy"], lane: "social" }),
+  S({ id: "yt-long-us", name: "YouTube Top Long-form (US)",
+      url: "youtube://mostPopular?regionCode=US&form=long&top=5", kind: "youtube",
+      sourceType: "platform-announcement", region: "US", platform: "youtube",
+      categories: ["Culture", "Entertainment", "Creator Economy"], lane: "social" }),
+
+  // ── India internet culture: where a meme is visible before a publication
+  //    writes about it. Community tier, so labelled EARLY SIGNAL, never fact.
+  S({ id: "r-indiameme", name: "r/IndianMemeTemplates",
+      url: "https://www.reddit.com/r/IndianMemeTemplates/hot/.rss?limit=25", kind: "reddit",
+      sourceType: "community", region: "IN", platform: "reddit",
+      categories: ["Culture", "Entertainment"], lane: "social" }),
+  S({ id: "r-bollyblindsngossip", name: "r/BollyBlindsNGossip",
+      url: "https://www.reddit.com/r/BollyBlindsNGossip/hot/.rss?limit=25", kind: "reddit",
+      sourceType: "community", region: "IN", platform: "reddit",
+      categories: ["Culture", "Entertainment", "Media"], lane: "social" }),
+
   // ── Measured search interest.
   S({ id: "trends-in", name: "Google Trends India",
       url: "https://trends.google.com/trending/rss?geo=IN", kind: "trends",

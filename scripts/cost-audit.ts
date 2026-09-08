@@ -44,8 +44,29 @@ const model = config.gemini.model;
 if (!isFreeTierModel(model)) problems.push(`GEMINI_MODEL="${model}" is not a free-tier model.`);
 else notes.push(`AI model "${model}" is Flash/Flash-Lite class — free tier.`);
 
+// 3b. Free-tier keys.
+//
+// Two credentials are permitted, both free and neither able to bill on the
+// tier this app uses: the Google AI Studio key and the YouTube Data API key.
+// Both are optional — with the key absent the feature reports itself
+// unavailable rather than degrading to a paid alternative.
+//
+// This is an explicit allowlist paired with the PAID_ENV denylist above,
+// rather than a pattern match on "*_TOKEN": the environment a developer runs
+// in is full of unrelated credentials, and failing the build on those would
+// train people to ignore this check.
+const FREE_TIER_KEYS = ["GEMINI_API_KEY", "YOUTUBE_API_KEY"] as const;
+const present = FREE_TIER_KEYS.filter((k) => process.env[k]);
+notes.push(
+  present.length
+    ? `Credentials: ${present.join(", ")} — free tier, no billing account, feature disables itself when absent.`
+    : "Credentials: none set. Every keyed feature is off and reports itself unavailable.",
+);
+
 // 4. Data sources — nothing keyed, nothing metered
-const keyed = SOURCES.filter((s) => /api[_-]?key|token=|apikey/i.test(s.url));
+// Source URLs must still be keyless. The YouTube adapter builds its request
+// from config at call time, so no key is ever written into the registry.
+const keyed = SOURCES.filter((s) => /api[_-]?key=|token=|apikey=/i.test(s.url));
 if (keyed.length) problems.push(`Sources requiring keys: ${keyed.map((s) => s.name).join(", ")}`);
 else notes.push(`${SOURCES.length} data sources, all public feeds or keyless APIs.`);
 

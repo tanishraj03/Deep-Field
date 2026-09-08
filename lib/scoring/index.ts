@@ -8,6 +8,33 @@ import { clamp01, daysAgo } from "@/lib/utils";
 
 const CREATOR_RE = /\b(creator|influencer|reels?|shorts?|tiktok|ugc|meme|format|viral|audio|podcast|fandom|gen ?z|instagram|youtube|snapchat|pinterest|threads|twitch|substack|short-?form|vertical video|livestream|live ?shopping|creator economy|social media|subscriber|follower|engagement)\b/i;
 const BRAND_RE = /\b(brand|campaign|consumer|d2c|retail|shopper|ambassador|launch|marketing)\b/i;
+/**
+ * Searches people run to get something done, not because culture moved.
+ * These dominate Google Trends daily lists and are noise for this desk.
+ */
+const UTILITY_SEARCH_RE = /\b(weather|forecast|temperature|rainfall|monsoon|earthquake|aqi|air quality|result|results|admit card|answer key|merit list|cut ?off|recruitment|vacancy|exam|board exam|neet|jee|upsc|ssc|login|password|otp|ifsc|pin ?code|petrol price|gold rate|silver rate|share price|stock price|exchange rate|live score|scorecard|vs .* live|match (result|score)|horoscope|rashifal|panchang|holiday list)\b/i;
+
+/**
+ * Signals that a search spike is a CULTURE moment rather than hard news.
+ *
+ * Google Trends ranks everything a country googles — stock tickers, fixtures,
+ * immigration policy. An influencer desk cares about the slice that is film,
+ * television, music, celebrity and internet humour, because that is what
+ * creators make content about. Matched against the term plus the news headline
+ * Google attaches to it, and covering Devanagari because a Hindi entertainment
+ * story is exactly the case this exists for.
+ */
+const CULTURE_RE = new RegExp(
+  "\\b(show|series|episode|season|premiere|trailer|teaser|cast|casting|cancel?led|renewed" +
+  "|film|movie|cinema|box office|ott|streaming|netflix|prime video|hotstar|jiocinema|zee5|sony liv" +
+  "|actor|actress|star|celebrity|singer|rapper|song|music|album|track|concert|tour|jingle" +
+  "|comedian|comedy|roast|meme|viral|trend(?:ing)?|fandom|stan|reality (?:show|tv)|bigg boss" +
+  "|influencer|creator|youtuber|streamer|podcast|collab|wedding|engagement|birthday|controversy" +
+  "|award|awards|festival|anniversary|reunion|biopic|web series|dance|challenge)\\b" +
+  "|(शो|फ़िल्म|फिल्म|सीरीज|अभिनेता|अभिनेत्री|गाना|गाने|संगीत|मीम|वायरल|कलाकार|एपिसोड|सितारे|शादी)",
+  "i",
+);
+
 const CONSUMER_RE = /\b(app|consumer|shopper|shopping|social commerce|checkout|d2c|retail|subscription|user growth|downloads|gifting|festive)\b/i;
 
 function pts(label: string, weight: number, value01: number, note: string): ScoreBreakdown {
@@ -103,6 +130,31 @@ export function relevance(c: Cluster): number {
   const creator = CREATOR_RE.test(hay);
   const brand = BRAND_RE.test(hay);
   const consumer = CONSUMER_RE.test(hay);
+
+  // Sources that MEASURE what is being watched or searched are on topic by
+  // definition — a ranked view count or a search spike is content performance,
+  // which is the subject of the product. Requiring creator/brand vocabulary of
+  // them was why a meme spiking across India could never appear: "Ravi Kishan"
+  // contains no marketing words, and the gate below dropped it to zero.
+  const measured =
+    c.primary.sourceType === "trend-index" ||
+    c.primary.platform === "google-trends" ||
+    c.primary.platform === "youtube" && c.primary.sourceType === "platform-announcement";
+
+  if (measured) {
+    // Utility searches are not culture. Weather, exam results and login
+    // queries spike constantly and mean nothing to this desk.
+    if (UTILITY_SEARCH_RE.test(hay)) return 0;
+    // A search spike only counts when it is a culture moment. Ranked YouTube
+    // view counts are exempt: those ARE content, whatever the subject.
+    const rankedContent = c.primary.platform === "youtube";
+    if (!rankedContent && !CULTURE_RE.test(hay)) return 0;
+    let m = 0.5;
+    if (creator) m += 0.2;
+    if (brand || consumer) m += 0.1;
+    if (c.primary.region === "IN") m += 0.1;
+    return clamp01(m);
+  }
 
   // No creator, brand or consumer signal at all — not this product's subject,
   // however recent, well-sourced or local it is.

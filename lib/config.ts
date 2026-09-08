@@ -47,6 +47,15 @@ export const config = {
     maxWallClockMs: num(process.env.AI_MAX_WALL_CLOCK_MS, process.env.VERCEL ? 40_000 : 600_000),
   },
 
+  /**
+   * YouTube Data API v3 — free tier, 10,000 units/day, no billing account.
+   * Optional: with no key the top-performing-video sources simply report
+   * themselves unavailable, like any other feed that cannot be reached.
+   */
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY ?? "",
+  },
+
   supabase: {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",

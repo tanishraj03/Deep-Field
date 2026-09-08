@@ -21,6 +21,7 @@ function mockBrief(): DailyBrief {
       generatedBy: "gemini",
     },
     ...mockBriefSections(),
+    contentBuckets: [],
   };
 }
 

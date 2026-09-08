@@ -3,8 +3,63 @@ import { ArrowLeft } from "lucide-react";
 import { Empty, Eyebrow, Glass, Tag } from "@/components/ui";
 import { getSnapshot } from "@/lib/snapshot";
 import { istDate, relativeTime } from "@/lib/utils";
+import type { ContentBucket } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Content buckets: what to actually brief creators to make.
+ *
+ * Every bucket is model interpretation, so it is labelled as such and shows
+ * the collected items it was read from. A reader who doubts a pattern can see
+ * exactly which headlines produced it.
+ */
+function Buckets({ buckets }: { buckets: ContentBucket[] }) {
+  if (buckets.length === 0) {
+    return (
+      <section>
+        <Eyebrow className="mb-2.5">Content buckets</Eyebrow>
+        <p className="text-[0.875rem] text-faint">
+          Not enough corroborating items today to name a pattern.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2">
+        <Eyebrow>Content buckets</Eyebrow>
+        <Tag>{buckets[0].generatedBy === "gemini" ? "AI interpretation" : "Rules only"}</Tag>
+      </div>
+      <div className="space-y-4">
+        {buckets.map((b) => (
+          <article key={b.name} className="rounded-tile p-4" style={{ background: "rgb(var(--hair) / 0.04)" }}>
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <h3 className="text-[0.9375rem] font-semibold text-ink">{b.name}</h3>
+              <span className="readout text-[0.7rem] font-semibold" style={{ color: "rgb(var(--jade))" }}>
+                {b.format}
+              </span>
+              {b.platforms.length > 0 && (
+                <span className="readout text-[0.7rem] text-faint">{b.platforms.join(" · ")}</span>
+              )}
+            </div>
+            <p className="mt-1.5 text-[0.875rem] leading-[1.6] text-ink/80">{b.whyItWorks}</p>
+            <details className="mt-2.5">
+              <summary className="readout cursor-pointer text-[0.7rem] text-faint hover:text-muted">
+                Read from {b.evidence.length} collected item{b.evidence.length === 1 ? "" : "s"}
+              </summary>
+              <ul className="mt-2 space-y-1">
+                {b.evidence.map((e) => (
+                  <li key={e} className="text-[0.8125rem] leading-snug text-muted">— {e}</li>
+                ))}
+              </ul>
+            </details>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function Section({ title, lines, numbered = false }: {
   title: string; lines: string[]; numbered?: boolean;
@@ -84,6 +139,7 @@ export default async function BriefPage() {
             <div className="hairline pt-6"><Section title="Money moves" lines={b.moneyMoves} /></div>
             <div className="hairline pt-6"><Section title="Who's spending" lines={b.whosSpending} /></div>
             <div className="hairline pt-6"><Section title="Who we should talk to" lines={b.whoToTalkTo} numbered /></div>
+            <div className="hairline pt-6"><Buckets buckets={b.contentBuckets} /></div>
             <div className="hairline pt-6"><Section title="Watch" lines={b.watch} /></div>
           </Glass>
 

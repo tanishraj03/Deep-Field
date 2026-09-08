@@ -84,6 +84,27 @@ ${items.slice(0, 18).map((i, n) => `[${n + 1}] (${i.type}, ${i.region}) ${i.titl
 JSON shape:
 {"headline":"one sentence, max 45 words, describing the pattern","reasoning":"3-5 sentences explaining the evidence behind it and what it means for creator collaborations"}`,
 
+  contentBuckets: (items: IntelligenceItem[]) => `${GUARDRAILS}
+
+You are naming CONTENT BUCKETS: the recurring formats and subjects that are
+demonstrably working right now, so the team knows what to brief creators to make.
+
+Work only from the evidence below. Rules specific to this task:
+- Name 3 to 5 buckets. Fewer is fine if the evidence only supports fewer.
+- A bucket is a repeatable content idea ("founder voice-note desk tours"), not a
+  news summary ("Company X raised money").
+- "format" must be one of: short-form, long-form, both. Decide from the evidence
+  — a ranked Shorts view count is short-form, a 20-minute video is long-form.
+- "platforms" lists only platforms actually named in the evidence.
+- "evidence" must quote the exact TITLE lines you used. Never invent one.
+- If the evidence does not support a real pattern, return fewer buckets rather
+  than inventing one.
+
+EVIDENCE:
+${items.map(evidence).join("\n---\n")}
+
+JSON: {"buckets":[{"name":"","whyItWorks":"","format":"short-form|long-form|both","platforms":[""],"evidence":[""]}]}`,
+
   dailyBrief: (items: IntelligenceItem[]) => `${GUARDRAILS}
 
 Write a morning brief readable in under three minutes.

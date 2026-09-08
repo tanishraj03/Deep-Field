@@ -35,12 +35,28 @@ export async function generateBrief(items: IntelligenceItem[]): Promise<DailyBri
     sections = await new RulesProvider().generateDailyBrief(ranked);
   }
 
+  // A third call, and the last: naming the content patterns. Falls back to the
+  // deterministic grouping rather than leaving the section blank, and any
+  // failure here must not cost us the brief that is already written.
+  let contentBuckets: DailyBrief["contentBuckets"] = [];
+  try {
+    const raw = await provider.deriveContentBuckets(ranked);
+    contentBuckets = raw.map((b) => ({ ...b, generatedBy }));
+  } catch {
+    try {
+      const { RulesProvider } = await import("@/lib/ai/rules");
+      const raw = await new RulesProvider().deriveContentBuckets(ranked);
+      contentBuckets = raw.map((b) => ({ ...b, generatedBy: "rules" as const }));
+    } catch { contentBuckets = []; }
+  }
+
   const date = todayKey();
   const brief: DailyBrief = {
     id: hash(`brief:${date}`),
     date,
     generatedAt: new Date().toISOString(),
     ...sections,
+    contentBuckets,
     theSignal: signal,
   };
 
