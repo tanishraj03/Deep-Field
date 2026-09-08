@@ -142,6 +142,26 @@ export const SOURCES: SourceDefinition[] = [
       sourceType: "platform-announcement", region: "US", platform: "youtube",
       categories: ["Culture", "Entertainment", "Creator Economy"], lane: "social" }),
 
+  // ── Measured attention. When a moment breaks, people look the person up, so
+  //    a page jumping to five figures is a culture spike with a number behind
+  //    it. Free, keyless, and explicitly offered for public use — which is why
+  //    this is here instead of a scraper pointed at a platform that forbids one.
+  S({ id: "wiki-hi", name: "Wikipedia India (Hindi)",
+      url: "wikipedia://top?wiki=hi.wikipedia&top=12", kind: "wikipedia",
+      sourceType: "trend-index", region: "IN", platform: "web",
+      categories: ["Culture", "Entertainment"], lane: "social" }),
+  S({ id: "wiki-en-in", name: "Wikipedia (English)",
+      url: "wikipedia://top?wiki=en.wikipedia&top=12", kind: "wikipedia",
+      sourceType: "trend-index", region: "GLOBAL", platform: "web",
+      categories: ["Culture", "Entertainment"], lane: "social" }),
+
+  // ── Bluesky's public endpoint: the nearest legitimate read on the
+  //    conversation that used to sit on X, with no bot wall to defeat.
+  S({ id: "bluesky-trending", name: "Bluesky Trending",
+      url: "https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrendingTopics?limit=25",
+      kind: "bluesky", sourceType: "public-social", region: "GLOBAL", platform: "x",
+      categories: ["Culture", "Media"], lane: "social" }),
+
   // ── India internet culture: where a meme is visible before a publication
   //    writes about it. Community tier, so labelled EARLY SIGNAL, never fact.
   S({ id: "r-indiameme", name: "r/IndianMemeTemplates",

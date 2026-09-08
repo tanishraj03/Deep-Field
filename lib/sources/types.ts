@@ -4,7 +4,7 @@ export interface SourceDefinition {
   id: string;
   name: string;
   url: string;
-  kind: "rss" | "reddit" | "trends" | "hn" | "youtube";
+  kind: "rss" | "reddit" | "trends" | "hn" | "youtube" | "wikipedia" | "bluesky";
   sourceType: SourceType;
   region: Region;
   platform: Platform;
