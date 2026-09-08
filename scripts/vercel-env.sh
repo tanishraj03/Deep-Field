@@ -8,10 +8,13 @@
 #
 # Re-running is safe: each variable is removed before it is re-added, so this
 # updates existing values rather than erroring on them.
-set -euo pipefail
+set -uo pipefail
 cd "$(dirname "$0")/.."
 
 [ -f .env.local ] || { echo "no .env.local here"; exit 1; }
+
+# The CLI is usually not on PATH; fall back to npx.
+VERCEL=$(command -v vercel || echo "npx --yes vercel")
 
 # Supabase is deliberately excluded: it is optional and comes in Phase 5.
 VARS=(
@@ -28,12 +31,12 @@ for name in "${VARS[@]}"; do
     continue
   fi
   for env in production preview development; do
-    vercel env rm "$name" "$env" --yes >/dev/null 2>&1 || true
-    printf '%s' "$value" | vercel env add "$name" "$env" >/dev/null 2>&1
+    $VERCEL env rm "$name" "$env" --yes >/dev/null 2>&1 || true
+    printf '%s' "$value" | $VERCEL env add "$name" "$env" >/dev/null 2>&1
   done
   echo "  set     $name  (production, preview, development)"
 done
 
 echo
 echo "Done. Redeploy so the new values take effect:"
-echo "  vercel --prod"
+echo "  npx vercel --prod"
