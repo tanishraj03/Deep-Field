@@ -25,6 +25,15 @@ export async function getRepository(): Promise<Repository> {
       backend: "local-file", persistent: false,
       note: "Supabase configured but unreachable — using local store. Check the schema has been applied.",
     };
+  } else if (process.env.VERCEL) {
+    // Said plainly, because Settings claiming "persistent" here was wrong and
+    // hid the reason the screen kept coming up empty.
+    status = {
+      backend: "local-file", persistent: false,
+      note: "No database configured. On serverless the store lives in the container's /tmp, " +
+        "so it survives a few requests but is lost when the container recycles, and is not " +
+        "shared between them. Add Supabase for a feed that holds between runs.",
+    };
   } else {
     status = {
       backend: "local-file", persistent: true,

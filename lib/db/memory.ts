@@ -18,19 +18,40 @@ interface Store {
 const empty = (): Store => ({ seen: {}, items: [], briefs: [], runs: [], usage: {}, saved: [] });
 
 /**
- * Zero-dependency store. Writes to .data/store.json when the filesystem is
- * writable (local dev, GitHub Actions) and falls back to process memory on
- * read-only serverless filesystems. Good enough to run the whole product
- * without ever creating an account anywhere.
+ * Zero-dependency store.
+ *
+ * The project root is read-only on Vercel, so writing there failed and every
+ * request fell back to a fresh in-process object: collect stored 536 items and
+ * the next request — the page render, or the analyse stage — got an empty
+ * store and showed "No signal yet this morning".
+ *
+ * /tmp IS writable on Vercel and survives for the life of the container, which
+ * is reused across requests for minutes at a time. Writing there makes the app
+ * work through a normal morning without any account. It is still not shared
+ * between containers, so it is honestly reported as non-durable and Supabase
+ * remains the real answer — but the difference between this and nothing is the
+ * difference between a working screen and an empty one.
  */
+const STORE_FILE = process.env.VERCEL
+  ? "/tmp/deep-field/store.json"
+  : path.join(process.cwd(), ".data", "store.json");
+
 export class MemoryRepository implements Repository {
   readonly id = "local-file";
   private store: Store = empty();
-  private file = path.join(process.cwd(), ".data", "store.json");
+  private file = STORE_FILE;
   private loaded = false;
   private writable = true;
+  /** Set once a write has actually succeeded — not merely been attempted. */
+  private proven = false;
 
-  get persistent() { return this.writable; }
+  /**
+   * Durable across restarts, not just across requests. On serverless /tmp is
+   * container-scoped, so this is false there even when writes succeed: the
+   * previous version reported `true` before it had ever tried to write, which
+   * told Settings the data was safe when it was not.
+   */
+  get persistent() { return this.writable && this.proven && !process.env.VERCEL; }
   async healthy() { return true; }
 
   private async load() {
@@ -47,8 +68,9 @@ export class MemoryRepository implements Repository {
     try {
       await fs.mkdir(path.dirname(this.file), { recursive: true });
       await fs.writeFile(this.file, JSON.stringify(this.store), "utf8");
+      this.proven = true;
     } catch {
-      this.writable = false; // serverless read-only fs — stay in memory
+      this.writable = false; // genuinely read-only — stay in memory
     }
   }
 
