@@ -106,10 +106,19 @@ function TheSignal({ snapshot }: { snapshot: Snapshot }) {
   const signal = snapshot.brief?.theSignal;
 
   if (!signal?.headline) {
+    // An empty screen with no collection behind it means the store is not
+    // holding anything, and on serverless that has one cause. Telling someone
+    // to "run a collection" when a collection cannot survive the request that
+    // follows it sends them round a loop — so say what is actually wrong.
+    const neverRan = !snapshot.lastRun;
     return (
       <Empty
         title="No signal yet this morning."
-        action="Run a collection from Settings → System, or wait for the 6:00 AM schedule."
+        action={
+          neverRan
+            ? "Nothing is stored. Without a database the feed cannot survive between requests on serverless — collection runs, then the next page load starts empty. Add the Supabase keys in Settings → System to fix it; refreshing will not."
+            : "Collection ran but stored nothing that cleared the relevance filter. Widen your feed in Settings, or check Diagnostics for sources that failed."
+        }
       />
     );
   }
