@@ -250,7 +250,8 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
  * them approaches the timeout.
  */
 export async function runInterpretation(limit?: number): Promise<{
-  analysed: number; total: number; aiSkipped: boolean; aiSkipReason?: string; provider: string;
+  analysed: number; failed?: number; total: number; aiSkipped: boolean;
+  aiSkipReason?: string; firstError?: string; provider: string;
 }> {
   const repo = await getRepository();
   const stored = await repo.listItems(200);
@@ -267,13 +268,18 @@ export async function runInterpretation(limit?: number): Promise<{
 
   const deadline = Date.now() + config.ai.maxWallClockMs;
   let analysed = 0;
+  let failed = 0;
   let aiSkipped = false;
   let aiSkipReason: string | undefined;
+  // A swallowed error is indistinguishable from a slow run. The first one is
+  // kept and reported so a pass that interprets nothing says why.
+  let firstError: string | undefined;
 
   for (const item of shortlist) {
     if (Date.now() > deadline) {
       aiSkipped = true;
-      aiSkipReason = `Time budget reached — ${analysed} of ${shortlist.length} interpreted this pass. The rest keep their deterministic scores and are picked up next run.`;
+      aiSkipReason = `Time budget reached — ${analysed} interpreted, ${failed} failed, of ${shortlist.length} attempted.` +
+        (firstError ? ` First failure: ${firstError}` : "");
       break;
     }
     try {
@@ -285,9 +291,15 @@ export async function runInterpretation(limit?: number): Promise<{
         aiSkipReason = err.message;
         break;
       }
+      failed++;
+      if (!firstError) firstError = err instanceof Error ? truncate(err.message, 160) : "unknown error";
     }
   }
 
   if (analysed > 0) await repo.saveItems(stored);
-  return { analysed, total: pending.length, aiSkipped, aiSkipReason, provider: provider.id };
+  return {
+    analysed, failed, total: pending.length, aiSkipped,
+    aiSkipReason: aiSkipReason ?? (failed > 0 ? `${failed} interpretation(s) failed. First: ${firstError}` : undefined),
+    firstError, provider: provider.id,
+  };
 }

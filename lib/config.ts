@@ -61,7 +61,7 @@ export const config = {
      * reports how many items it managed — reduced coverage, stated plainly.
      * Generous locally and in GitHub Actions, where nothing kills the process.
      */
-    maxWallClockMs: num(process.env.AI_MAX_WALL_CLOCK_MS, process.env.VERCEL ? 40_000 : 600_000),
+    maxWallClockMs: num(process.env.AI_MAX_WALL_CLOCK_MS, process.env.VERCEL ? 50_000 : 600_000),
   },
 
   /**
