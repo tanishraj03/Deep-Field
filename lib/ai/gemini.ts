@@ -168,9 +168,8 @@ export class GeminiFreeProvider implements AIProvider {
     // against the free-tier rule, and any failure falls back to the resolved
     // everyday model rather than to something paid.
     const resolved = await this.model();
-    const model = opts.deep && isFreeTierModel(config.gemini.deepModel)
-      ? config.gemini.deepModel
-      : resolved;
+    const useDeep = Boolean(opts.deep) && isFreeTierModel(config.gemini.deepModel);
+    const model = useDeep ? config.gemini.deepModel : resolved;
 
     // ~4 chars per token, plus the output ceiling.
     const est = Math.ceil(prompt.length / 4) + maxTokens;
@@ -189,7 +188,12 @@ export class GeminiFreeProvider implements AIProvider {
             temperature: 0.35,
             maxOutputTokens: maxTokens,
             responseMimeType: "application/json",
-            ...(config.gemini.disableThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+            // ONLY on the deep model. Flash-Lite does not accept thinkingConfig
+            // and answers 400 INVALID_ARGUMENT, which silently failed every
+            // per-item interpretation until the error was surfaced.
+            ...(useDeep && config.gemini.disableThinking
+              ? { thinkingConfig: { thinkingBudget: 0 } }
+              : {}),
           },
         }),
         // Space calls to stay under the free tier's requests-per-minute
