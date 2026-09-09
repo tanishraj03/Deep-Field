@@ -58,26 +58,48 @@ jobs:
             exit 1
           fi
 
+          # One job per stage. Collecting, interpreting, writing and posting
+          # cannot share a single 60s Hobby function — that returned 504.
           case "$STAGE" in
-            collect)  QS="" ;;
-            analyse)  QS="" ;;
-            brief)    QS="?brief=1" ;;
-            deliver)  QS="?brief=1&slack=1" ;;
-            deliver-if-due) QS="?brief=1&slack=1&scheduled=1" ;;
+            collect)  QS="?stage=collect" ;;
+            analyse)  QS="?stage=analyse" ;;
+            brief)    QS="?stage=brief" ;;
+            deliver)  QS="?stage=deliver" ;;
+            deliver-if-due) QS="?stage=deliver&scheduled=1" ;;
             full)     QS="?brief=1&slack=1" ;;
-            *)        QS="" ;;
+            *)        QS="?stage=collect" ;;
           esac
 
           echo "Stage: $STAGE → POST ${APP_URL}/api/ingest${QS}"
 
-          HTTP=$(curl -sS -o response.json -w "%{http_code}" \
-            -X POST "${APP_URL}/api/ingest${QS}" \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            -H "Content-Type: application/json" \
-            --max-time 120 --retry 2 --retry-delay 20 --retry-connrefused)
+          call() {
+            curl -sS -o response.json -w "%{http_code}" \
+              -X POST "${APP_URL}/api/ingest${QS}" \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              -H "Content-Type: application/json" \
+              --max-time 120 --retry 2 --retry-delay 20 --retry-connrefused
+          }
 
+          HTTP=$(call)
           echo "HTTP $HTTP"
           cat response.json
+
+          # One analyse pass fits about ten paced model calls inside the
+          # function timeout, so keep going while items remain unanalysed.
+          # Runs here, not on Vercel, because GitHub gives us the minutes.
+          if [ "$STAGE" = "analyse" ] && [ "$HTTP" -ge 200 ] && [ "$HTTP" -lt 300 ]; then
+            for pass in 2 3 4 5 6; do
+              REMAINING=$(python3 -c "import json;d=json.load(open('response.json'));print(max(0,d.get('total',0)-d.get('analysed',0)))" 2>/dev/null || echo 0)
+              SKIPPED=$(python3 -c "import json;print(json.load(open('response.json')).get('aiSkipped'))" 2>/dev/null || echo True)
+              echo "after pass $((pass-1)): ~${REMAINING} still unanalysed (aiSkipped=${SKIPPED})"
+              [ "$REMAINING" -le 0 ] && break
+              [ "$SKIPPED" = "True" ] && echo "stopping: provider asked us to back off" && break
+              sleep 20
+              HTTP=$(call)
+              echo "pass $pass → HTTP $HTTP"
+              cat response.json
+            done
+          fi
 
           # A failed source is normal and must not fail the workflow.
           # Only a non-2xx response from our own app is a real failure.

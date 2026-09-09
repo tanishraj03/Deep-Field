@@ -73,6 +73,24 @@ export const SOURCES: SourceDefinition[] = [
       sourceType: "industry-publication", region: "GLOBAL", platform: "web",
       categories: ["Media"], lane: "marketing" }),
 
+  // ── Content strategy and what is working on-platform. This is the lane a
+  //    content agency actually briefs from.
+  S({ id: "socialmediaexaminer", name: "Social Media Examiner",
+      url: "https://www.socialmediaexaminer.com/feed/", kind: "rss",
+      sourceType: "industry-publication", region: "GLOBAL", platform: "web",
+      categories: ["Creator Economy", "Media"], lane: "social" }),
+  S({ id: "etbrandequity", name: "ET BrandEquity",
+      url: "https://brandequity.economictimes.indiatimes.com/rss/topstories", kind: "rss",
+      sourceType: "reputable-publication", region: "IN", platform: "web",
+      categories: ["Media", "Consumer"], lane: "marketing" }),
+  S({ id: "medianews4u", name: "MediaNews4U",
+      url: "https://www.medianews4u.com/feed/", kind: "rss",
+      sourceType: "industry-publication", region: "IN", platform: "web",
+      categories: ["Media", "Entertainment"], lane: "marketing" }),
+  S({ id: "variety", name: "Variety", url: "https://variety.com/feed/", kind: "rss",
+      sourceType: "reputable-publication", region: "US", platform: "web",
+      categories: ["Entertainment", "Culture", "Media"], lane: "social" }),
+
   // ── Creator economy and culture.
   S({ id: "tubefilter", name: "Tubefilter", url: "https://www.tubefilter.com/feed/", kind: "rss",
       sourceType: "industry-publication", region: "GLOBAL", platform: "youtube",

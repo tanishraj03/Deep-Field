@@ -40,9 +40,15 @@ for (const e of PAID_ENV) {
 }
 
 // 3. AI model tier
-const model = config.gemini.model;
-if (!isFreeTierModel(model)) problems.push(`GEMINI_MODEL="${model}" is not a free-tier model.`);
-else notes.push(`AI model "${model}" is Flash/Flash-Lite class — free tier.`);
+// Both models are checked. The deep model is a second, easily-missed path to
+// a paid tier — it is set by its own env var and used for the brief.
+for (const [label, model] of [
+  ["GEMINI_MODEL", config.gemini.model],
+  ["GEMINI_MODEL_DEEP", config.gemini.deepModel],
+] as const) {
+  if (!isFreeTierModel(model)) problems.push(`${label}="${model}" is not a free-tier model.`);
+  else notes.push(`${label} "${model}" is Flash/Flash-Lite class — free tier.`);
+}
 
 // 3b. Free-tier keys.
 //

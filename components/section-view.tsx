@@ -11,10 +11,79 @@ import { useSaved } from "./saved";
 import { applyFilters, defaultFilters, type FilterState } from "@/lib/filters";
 import { applyPrefs, describePrefs, isEmptyFeed, loadPrefs, type Prefs } from "@/lib/prefs";
 import type { IntelligenceItem, Snapshot } from "@/lib/types";
-import { relativeTime } from "@/lib/utils";
+import { cn, relativeTime } from "@/lib/utils";
+
+/**
+ * Platform tabs for What's Moving.
+ *
+ * A content team asks "what is moving ON INSTAGRAM" before it asks "what is
+ * moving", because the answer changes what they brief. Tabs match on the
+ * item's own platform field first, then on the subject — an article in Social
+ * Media Today about a Reels change is Instagram news even though it arrived
+ * over the web.
+ */
+type PlatformTab = "all" | "youtube" | "instagram" | "x" | "tiktok" | "other";
+
+const TAB_SUBJECT: Record<Exclude<PlatformTab, "all" | "other">, RegExp> = {
+  youtube: /\b(youtube|shorts?\b|yt\b|creator award|monetisation|monetization)\b/i,
+  instagram: /\b(instagram|insta\b|reels?\b|ig\b|meta\b|threads)\b/i,
+  x: /\b(twitter|\bx\.com|on x\b|bluesky|tweet|posts? on x)\b/i,
+  tiktok: /\b(tiktok|douyin)\b/i,
+};
+
+function matchesPlatformTab(i: IntelligenceItem, tab: PlatformTab): boolean {
+  if (tab === "all") return true;
+  const hay = `${i.title} ${i.summary}`;
+  if (tab === "other") {
+    return !Object.values(TAB_SUBJECT).some((re) => re.test(hay)) &&
+      !["youtube", "instagram", "x", "tiktok"].includes(i.platform);
+  }
+  if (i.platform === tab) return true;
+  if (tab === "instagram" && i.platform === "facebook") return true;
+  return TAB_SUBJECT[tab].test(hay);
+}
+
+function PlatformTabs({ value, onChange, pool }: {
+  value: PlatformTab; onChange: (t: PlatformTab) => void; pool: IntelligenceItem[];
+}) {
+  const tabs: { id: PlatformTab; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "youtube", label: "YouTube" },
+    { id: "instagram", label: "Instagram" },
+    { id: "tiktok", label: "TikTok" },
+    { id: "x", label: "X / Bluesky" },
+    { id: "other", label: "Other" },
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tabs.map((t) => {
+        const n = pool.filter((i) => matchesPlatformTab(i, t.id)).length;
+        const active = value === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            aria-pressed={active}
+            disabled={n === 0 && t.id !== "all"}
+            className={cn(
+              "press inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[0.75rem] font-semibold transition-colors",
+              active ? "text-ink" : "text-faint hover:text-muted",
+              n === 0 && t.id !== "all" && "cursor-not-allowed opacity-35 hover:text-faint",
+            )}
+            style={{ background: active ? "rgb(var(--jade) / 0.16)" : "rgb(var(--hair) / 0.05)" }}
+          >
+            {t.label}
+            <span className="readout tabular-nums opacity-70">{n}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function SectionView({
   snapshot, title, kicker, type, variant = "auto", defaultWindow = 1, showStrength = false,
+  showPlatformTabs = false,
 }: {
   snapshot: Snapshot;
   title: string;
@@ -23,8 +92,11 @@ export function SectionView({
   variant?: "auto" | "opportunity";
   defaultWindow?: number;
   showStrength?: boolean;
+  /** Split the list by platform. Used on What's Moving, where "where" matters. */
+  showPlatformTabs?: boolean;
 }) {
   const [filters, setFilters] = useState<FilterState>({ ...defaultFilters, windowDays: defaultWindow });
+  const [platformTab, setPlatformTab] = useState<PlatformTab>("all");
   const { toggle, isSaved } = useSaved();
 
   // The feed built during setup, applied ahead of the on-screen filters.
@@ -44,17 +116,22 @@ export function SectionView({
   );
   const hiddenByFeed = typed.length - pool.length;
 
+  const onTab = useMemo(
+    () => pool.filter((i) => matchesPlatformTab(i, platformTab)),
+    [pool, platformTab],
+  );
+
   const visible = useMemo(() => {
-    const filtered = applyFilters(pool, filters);
+    const filtered = applyFilters(onTab, filters);
     return variant === "opportunity"
       ? filtered.filter((i) => typeof i.opportunityScore === "number")
           .sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0))
       : filtered.sort((a, b) =>
           (b.novelty * 60 + (b.trendScore ?? b.opportunityScore ?? 0) * 0.4) -
           (a.novelty * 60 + (a.trendScore ?? a.opportunityScore ?? 0) * 0.4));
-  }, [pool, filters, variant]);
+  }, [onTab, filters, variant]);
 
-  const olderCount = pool.length - visible.length;
+  const olderCount = onTab.length - visible.length;
 
   return (
     <div className="space-y-6">
@@ -67,6 +144,10 @@ export function SectionView({
             ` · ${snapshot.lastRun.sourcesFailed} sources unavailable`}
         </p>
       </header>
+
+      {showPlatformTabs && (
+        <PlatformTabs value={platformTab} onChange={setPlatformTab} pool={pool} />
+      )}
 
       <Filters value={filters} onChange={setFilters} showStrength={showStrength} />
 

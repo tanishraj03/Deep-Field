@@ -11,6 +11,7 @@ export default async function SignalsPage() {
       title="What's Moving"
       type="trend"
       showStrength
+      showPlatformTabs
       defaultWindow={3}
     />
   );

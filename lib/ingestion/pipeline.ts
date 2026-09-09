@@ -7,6 +7,7 @@ import {
   confidence, novelty, relevance, scoreOpportunity, scoreTrend, signalLabel,
 } from "@/lib/scoring";
 import { getAIProvider, QuotaExhausted } from "@/lib/ai";
+import type { AIProvider } from "@/lib/ai";
 import { getRepository } from "@/lib/db";
 import type { SeenRecord } from "@/lib/db";
 import { mockItems, mockRun } from "@/lib/mock/data";
@@ -103,6 +104,40 @@ function priority(i: IntelligenceItem): number {
 
 // ── Full run ──────────────────────────────────────────────────────────────────
 
+
+/**
+ * Attach one item's AI interpretation. Shared by the full pipeline and the
+ * analyse-only stage so both label provenance identically — a caller can never
+ * accidentally write model output without the AI_INTERPRETATION tag.
+ */
+async function interpret(item: IntelligenceItem, provider: AIProvider): Promise<void> {
+  const generatedBy = provider.id === "gemini-free" ? "gemini" : "rules";
+  if (item.type === "funding") {
+    const a = await provider.analyzeFunding(item);
+    item.analysis = {
+      whatHappened: a.whatTheyDo, whyItsMoving: "", creatorOpportunity: "",
+      brandOpportunity: "", whyWeCare: a.whyWeCare,
+      veracity: "AI_INTERPRETATION", generatedBy,
+    };
+    item.creatorCategories = a.creatorCategories;
+  } else if (item.type === "marketing") {
+    const a = await provider.analyzeMarketing(item);
+    item.analysis = {
+      whatHappened: a.whatWereSeeing, whyItsMoving: a.whyNow, creatorOpportunity: a.possiblePitch,
+      brandOpportunity: "", whyWeCare: a.whyNow,
+      veracity: "AI_INTERPRETATION", generatedBy,
+    };
+    item.creatorCategories = a.creatorCategories;
+  } else {
+    const a = await provider.classifyTrend(item);
+    item.analysis = {
+      whatHappened: a.whatHappened, whyItsMoving: a.whyItsMoving,
+      creatorOpportunity: a.creatorOpportunity, brandOpportunity: a.brandOpportunity,
+      whyWeCare: "", veracity: "AI_INTERPRETATION", generatedBy,
+    };
+  }
+}
+
 export interface RunOptions { withAI?: boolean; limitAI?: number }
 
 export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun; items: IntelligenceItem[] }> {
@@ -163,31 +198,7 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
         break;
       }
       try {
-        if (item.type === "funding") {
-          const a = await provider.analyzeFunding(item); aiRequests++; interpreted++;
-          item.analysis = {
-            whatHappened: a.whatTheyDo, whyItsMoving: "", creatorOpportunity: "",
-            brandOpportunity: "", whyWeCare: a.whyWeCare,
-            veracity: "AI_INTERPRETATION", generatedBy: provider.id === "gemini-free" ? "gemini" : "rules",
-          };
-          item.creatorCategories = a.creatorCategories;
-        } else if (item.type === "marketing") {
-          const a = await provider.analyzeMarketing(item); aiRequests++; interpreted++;
-          item.analysis = {
-            whatHappened: a.whatWereSeeing, whyItsMoving: a.whyNow, creatorOpportunity: a.possiblePitch,
-            brandOpportunity: "", whyWeCare: a.whyNow,
-            veracity: "AI_INTERPRETATION", generatedBy: provider.id === "gemini-free" ? "gemini" : "rules",
-          };
-          item.creatorCategories = a.creatorCategories;
-        } else {
-          const a = await provider.classifyTrend(item); aiRequests++; interpreted++;
-          item.analysis = {
-            whatHappened: a.whatHappened, whyItsMoving: a.whyItsMoving,
-            creatorOpportunity: a.creatorOpportunity, brandOpportunity: a.brandOpportunity,
-            whyWeCare: "", veracity: "AI_INTERPRETATION",
-            generatedBy: provider.id === "gemini-free" ? "gemini" : "rules",
-          };
-        }
+        await interpret(item, provider); aiRequests++; interpreted++;
       } catch (err) {
         if (err instanceof QuotaExhausted) {
           aiSkipped = true;
@@ -227,4 +238,56 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
   await repo.saveRun(run);
 
   return { run, items };
+}
+
+/**
+ * Interpretation only, over items already in the store.
+ *
+ * The daily workflow used to call one endpoint that collected, interpreted,
+ * wrote the brief and posted to Slack in a single request. Once AI calls were
+ * paced to respect the per-minute limit that no longer fitted in a Vercel
+ * function and the run died at 504. Each stage now does one thing, so none of
+ * them approaches the timeout.
+ */
+export async function runInterpretation(limit?: number): Promise<{
+  analysed: number; total: number; aiSkipped: boolean; aiSkipReason?: string; provider: string;
+}> {
+  const repo = await getRepository();
+  const stored = await repo.listItems(200);
+  const { provider, degraded, reason } = await getAIProvider();
+
+  // Only items that have not been interpreted yet, best first.
+  const pending = stored.filter((i) => !i.analysis).sort((a, b) => priority(b) - priority(a));
+  const budget = Math.min(limit ?? config.ai.maxItemsPerRun, config.ai.maxItemsPerRun);
+  const shortlist = pending.slice(0, budget);
+
+  if (degraded) {
+    return { analysed: 0, total: pending.length, aiSkipped: true, aiSkipReason: reason, provider: provider.id };
+  }
+
+  const deadline = Date.now() + config.ai.maxWallClockMs;
+  let analysed = 0;
+  let aiSkipped = false;
+  let aiSkipReason: string | undefined;
+
+  for (const item of shortlist) {
+    if (Date.now() > deadline) {
+      aiSkipped = true;
+      aiSkipReason = `Time budget reached — ${analysed} of ${shortlist.length} interpreted this pass. The rest keep their deterministic scores and are picked up next run.`;
+      break;
+    }
+    try {
+      await interpret(item, provider);
+      analysed++;
+    } catch (err) {
+      if (err instanceof QuotaExhausted) {
+        aiSkipped = true;
+        aiSkipReason = err.message;
+        break;
+      }
+    }
+  }
+
+  if (analysed > 0) await repo.saveItems(stored);
+  return { analysed, total: pending.length, aiSkipped, aiSkipReason, provider: provider.id };
 }

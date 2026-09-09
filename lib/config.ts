@@ -17,6 +17,23 @@ export const config = {
   gemini: {
     apiKey: process.env.GEMINI_API_KEY ?? "",
     model: process.env.GEMINI_MODEL || "gemini-flash-lite-latest",
+    /**
+     * A stronger free model, used only where one call buys a lot: THE SIGNAL,
+     * the brief sections and the content buckets. Per-item interpretation stays
+     * on the fast model because it runs forty times and the paced clock is the
+     * binding constraint there.
+     *
+     * Measured on the buckets prompt: 3.5-flash returns 4 well-reasoned buckets
+     * in ~7s against flash-lite's 3 thinner ones in ~1.8s.
+     */
+    deepModel: process.env.GEMINI_MODEL_DEEP || "gemini-3.5-flash",
+    /**
+     * Thinking is disabled on the deep model. Left on, it spent ~1085 tokens
+     * reasoning before writing and truncated the JSON mid-object — the response
+     * failed to parse and the whole section fell back to rules. Off, the same
+     * model answers correctly and faster.
+     */
+    disableThinking: bool(process.env.GEMINI_DISABLE_THINKING, true),
     endpoint: "https://generativelanguage.googleapis.com/v1beta",
   },
 

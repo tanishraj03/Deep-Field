@@ -158,8 +158,19 @@ export class GeminiFreeProvider implements AIProvider {
     throw new Error("No free-tier Flash model on this API key can serve generateContent.");
   }
 
-  private async call<T>(prompt: string, schema: z.ZodType<T>, maxTokens = 900): Promise<T> {
-    const model = await this.model();
+  private async call<T>(
+    prompt: string,
+    schema: z.ZodType<T>,
+    maxTokens = 900,
+    opts: { deep?: boolean } = {},
+  ): Promise<T> {
+    // The deep model is used verbatim when asked for; it is still checked
+    // against the free-tier rule, and any failure falls back to the resolved
+    // everyday model rather than to something paid.
+    const resolved = await this.model();
+    const model = opts.deep && isFreeTierModel(config.gemini.deepModel)
+      ? config.gemini.deepModel
+      : resolved;
 
     // ~4 chars per token, plus the output ceiling.
     const est = Math.ceil(prompt.length / 4) + maxTokens;
@@ -178,6 +189,7 @@ export class GeminiFreeProvider implements AIProvider {
             temperature: 0.35,
             maxOutputTokens: maxTokens,
             responseMimeType: "application/json",
+            ...(config.gemini.disableThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
           },
         }),
         // Space calls to stay under the free tier's requests-per-minute
@@ -254,7 +266,7 @@ export class GeminiFreeProvider implements AIProvider {
     return summary;
   }
   generateSignal(items: IntelligenceItem[]): Promise<SignalOutput> {
-    return this.call(prompts.signal(items), Schemas.signal, 700);
+    return this.call(prompts.signal(items), Schemas.signal, 900, { deep: true });
   }
   /**
    * Content buckets are pattern-naming, so the evidence list is verified
@@ -264,7 +276,7 @@ export class GeminiFreeProvider implements AIProvider {
    */
   async deriveContentBuckets(items: IntelligenceItem[]): Promise<Omit<ContentBucket, "generatedBy">[]> {
     type BucketsOut = { buckets: { name: string; whyItWorks?: string; format?: string; platforms?: string[]; evidence?: string[] }[] };
-    const out = await this.call(prompts.contentBuckets(items), Schemas.buckets as unknown as z.ZodType<BucketsOut>, 1200);
+    const out = await this.call(prompts.contentBuckets(items), Schemas.buckets as unknown as z.ZodType<BucketsOut>, 1600, { deep: true });
     const known = new Set(items.map((i) => i.title.toLowerCase().trim()));
     const asFormat = (v: string): ContentBucket["format"] =>
       v === "short-form" || v === "long-form" ? v : "both";
@@ -283,7 +295,7 @@ export class GeminiFreeProvider implements AIProvider {
   }
 
   async generateDailyBrief(items: IntelligenceItem[]): Promise<Omit<DailyBrief, "id" | "date" | "generatedAt">> {
-    const b = await this.call(prompts.dailyBrief(items), Schemas.brief, 1400);
+    const b = await this.call(prompts.dailyBrief(items), Schemas.brief, 1800, { deep: true });
     return {
       fiveThings: b.fiveThings ?? [],
       whatsMoving: b.whatsMoving ?? [],
