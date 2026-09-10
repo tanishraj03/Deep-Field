@@ -252,6 +252,18 @@ export async function runPipeline(opts: RunOptions = {}): Promise<{ run: SyncRun
 export async function runInterpretation(limit?: number): Promise<{
   analysed: number; failed?: number; total: number; aiSkipped: boolean;
   aiSkipReason?: string; firstError?: string; provider: string;
+  /** Items still without interpretation after this pass. */
+  remaining: number;
+  /**
+   * Whether calling this stage again would achieve anything.
+   *
+   * aiSkipped alone cannot answer that: it is set both when the clock ran out
+   * — where another pass is exactly what is needed — and when the provider
+   * refused, where another pass would only hammer a rate limit. The scheduler
+   * was reading the flag and stopping after one pass either way, which is why
+   * eight of 175 items were interpreted and the rest sat untouched.
+   */
+  moreToDo: boolean;
 }> {
   const repo = await getRepository();
   const stored = await repo.listItems(200);
@@ -263,7 +275,11 @@ export async function runInterpretation(limit?: number): Promise<{
   const shortlist = pending.slice(0, budget);
 
   if (degraded) {
-    return { analysed: 0, total: pending.length, aiSkipped: true, aiSkipReason: reason, provider: provider.id };
+    // No usable provider: another pass changes nothing.
+    return {
+      analysed: 0, total: pending.length, remaining: pending.length, moreToDo: false,
+      aiSkipped: true, aiSkipReason: reason, provider: provider.id,
+    };
   }
 
   const deadline = Date.now() + config.ai.maxWallClockMs;
@@ -271,12 +287,16 @@ export async function runInterpretation(limit?: number): Promise<{
   let failed = 0;
   let aiSkipped = false;
   let aiSkipReason: string | undefined;
+  // Distinguishes "the clock beat us" from "the provider said stop".
+  let outOfTime = false;
+  let providerRefused = false;
   // A swallowed error is indistinguishable from a slow run. The first one is
   // kept and reported so a pass that interprets nothing says why.
   let firstError: string | undefined;
 
   for (const item of shortlist) {
     if (Date.now() > deadline) {
+      outOfTime = true;
       aiSkipped = true;
       aiSkipReason = `Time budget reached — ${analysed} interpreted, ${failed} failed, of ${shortlist.length} attempted.` +
         (firstError ? ` First failure: ${firstError}` : "");
@@ -287,6 +307,7 @@ export async function runInterpretation(limit?: number): Promise<{
       analysed++;
     } catch (err) {
       if (err instanceof QuotaExhausted) {
+        providerRefused = true;
         aiSkipped = true;
         aiSkipReason = err.message;
         break;
@@ -297,8 +318,13 @@ export async function runInterpretation(limit?: number): Promise<{
   }
 
   if (analysed > 0) await repo.saveItems(stored);
+  const remaining = Math.max(0, pending.length - analysed);
   return {
-    analysed, failed, total: pending.length, aiSkipped,
+    analysed, failed, total: pending.length, remaining,
+    // Worth another pass only when work is left AND the provider did not
+    // refuse. Running out of clock is the case another pass is FOR.
+    moreToDo: remaining > 0 && !providerRefused && (outOfTime || analysed > 0),
+    aiSkipped,
     aiSkipReason: aiSkipReason ?? (failed > 0 ? `${failed} interpretation(s) failed. First: ${firstError}` : undefined),
     firstError, provider: provider.id,
   };
