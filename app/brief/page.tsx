@@ -14,13 +14,13 @@ export const dynamic = "force-dynamic";
  * the collected items it was read from. A reader who doubts a pattern can see
  * exactly which headlines produced it.
  */
-function Buckets({ buckets }: { buckets: ContentBucket[] }) {
+function Buckets({ buckets, note }: { buckets: ContentBucket[]; note?: string }) {
   if (buckets.length === 0) {
     return (
       <section>
         <Eyebrow className="mb-2.5">Content buckets</Eyebrow>
         <p className="text-[0.875rem] text-faint">
-          Not enough corroborating items today to name a pattern.
+          {note ?? "Not enough corroborating items today to name a pattern."}
         </p>
       </section>
     );
@@ -139,7 +139,7 @@ export default async function BriefPage() {
             <div className="hairline pt-6"><Section title="Money moves" lines={b.moneyMoves} /></div>
             <div className="hairline pt-6"><Section title="Who's spending" lines={b.whosSpending} /></div>
             <div className="hairline pt-6"><Section title="Who we should talk to" lines={b.whoToTalkTo} numbered /></div>
-            <div className="hairline pt-6"><Buckets buckets={b.contentBuckets} /></div>
+            <div className="hairline pt-6"><Buckets buckets={b.contentBuckets} note={b.bucketNote} /></div>
             <div className="hairline pt-6"><Section title="Watch" lines={b.watch} /></div>
           </Glass>
 

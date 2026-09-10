@@ -70,6 +70,7 @@ export async function generateBrief(items: IntelligenceItem[]): Promise<DailyBri
     generatedAt: new Date().toISOString(),
     ...sections,
     contentBuckets,
+    bucketNote,
     theSignal: signal,
   };
 

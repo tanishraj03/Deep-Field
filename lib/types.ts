@@ -171,6 +171,13 @@ export interface DailyBrief {
   whoToTalkTo: string[];
   watch: string[];
   contentBuckets: ContentBucket[];
+  /**
+   * Why contentBuckets is empty, when it is. "No pattern in today's items" and
+   * "the model call failed" are different facts and the reader deserves to
+   * know which — a blank section that cannot explain itself hid a broken
+   * evidence check for days.
+   */
+  bucketNote?: string;
 }
 
 export interface SourceRun {
