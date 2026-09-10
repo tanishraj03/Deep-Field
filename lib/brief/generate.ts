@@ -39,16 +39,29 @@ export async function generateBrief(items: IntelligenceItem[]): Promise<DailyBri
   // deterministic grouping rather than leaving the section blank, and any
   // failure here must not cost us the brief that is already written.
   let contentBuckets: DailyBrief["contentBuckets"] = [];
+  // Kept so the caller can say why the section is empty. A bare catch here
+  // meant "no buckets today" and "the call failed" looked identical, and the
+  // section stayed blank for days without anyone being able to tell which.
+  let bucketNote: string | undefined;
   try {
     const raw = await provider.deriveContentBuckets(ranked);
     contentBuckets = raw.map((b) => ({ ...b, generatedBy }));
-  } catch {
+    if (contentBuckets.length === 0) {
+      bucketNote = "Model returned no bucket whose evidence matched a collected item.";
+    }
+  } catch (err) {
+    bucketNote = `Model call failed: ${err instanceof Error ? err.message : "unknown error"}`;
     try {
       const { RulesProvider } = await import("@/lib/ai/rules");
       const raw = await new RulesProvider().deriveContentBuckets(ranked);
       contentBuckets = raw.map((b) => ({ ...b, generatedBy: "rules" as const }));
-    } catch { contentBuckets = []; }
+      if (contentBuckets.length) bucketNote += " — fell back to deterministic grouping.";
+    } catch (fallbackErr) {
+      bucketNote += ` Fallback also failed: ${fallbackErr instanceof Error ? fallbackErr.message : "unknown"}`;
+      contentBuckets = [];
+    }
   }
+  if (bucketNote) console.warn(`[brief] content buckets: ${bucketNote}`);
 
   const date = todayKey();
   const brief: DailyBrief = {

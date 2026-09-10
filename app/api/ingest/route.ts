@@ -70,6 +70,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           ok: true, stage, briefId: brief.id,
           buckets: brief.contentBuckets.length,
+          bucketNote: (brief as typeof brief & { bucketNote?: string }).bucketNote ?? null,
           writtenBy: brief.theSignal.generatedBy,
         });
       }

@@ -281,9 +281,30 @@ export class GeminiFreeProvider implements AIProvider {
   async deriveContentBuckets(items: IntelligenceItem[]): Promise<Omit<ContentBucket, "generatedBy">[]> {
     type BucketsOut = { buckets: { name: string; whyItWorks?: string; format?: string; platforms?: string[]; evidence?: string[] }[] };
     const out = await this.call(prompts.contentBuckets(items), Schemas.buckets as unknown as z.ZodType<BucketsOut>, 1600, { deep: true });
-    const known = new Set(items.map((i) => i.title.toLowerCase().trim()));
     const asFormat = (v: string): ContentBucket["format"] =>
       v === "short-form" || v === "long-form" ? v : "both";
+
+    // Evidence must point at something we actually collected, but demanding a
+    // character-exact title threw away every bucket: models trim a headline,
+    // drop a trailing clause or normalise an apostrophe, and a strict Set
+    // lookup reads that as fabricated. Matching on a normalised prefix keeps
+    // the check meaningful — an invented headline still finds nothing — while
+    // tolerating the paraphrase that made the section come back empty.
+    const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    const known = items.map((i) => ({ title: i.title, key: norm(i.title) }));
+    const resolve = (cited: string): string | null => {
+      const c = norm(cited);
+      if (!c) return null;
+      const exact = known.find((k) => k.key === c);
+      if (exact) return exact.title;
+      // One contains the other, and the shorter is substantial enough that the
+      // overlap cannot be coincidental.
+      const partial = known.find(
+        (k) => (k.key.startsWith(c) || c.startsWith(k.key)) && Math.min(k.key.length, c.length) >= 24,
+      );
+      return partial ? partial.title : null;
+    };
+
     return (out.buckets ?? [])
       .map((b) => ({
         name: b.name,
@@ -292,7 +313,11 @@ export class GeminiFreeProvider implements AIProvider {
         platforms: (b.platforms ?? []).filter(
           (p) => p && !/^not publicly disclosed$/i.test(p.trim()),
         ),
-        evidence: (b.evidence ?? []).filter((e) => known.has(e.toLowerCase().trim())),
+        // Store the title WE hold, not the model's rendering of it, so the
+        // interface always shows a headline that exists in the feed.
+        evidence: [...new Set(
+          (b.evidence ?? []).map(resolve).filter((t): t is string => t !== null),
+        )],
       }))
       .filter((b) => b.name && b.evidence.length > 0)
       .slice(0, 5);
