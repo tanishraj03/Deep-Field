@@ -5,6 +5,28 @@ import type { AppSettings, Repository, SeenRecord, UsageRecord } from "./types";
 import { rejectFabricated } from "./guard";
 
 /**
+ * Postgres refuses an upsert that touches the same primary key twice in one
+ * statement: "ON CONFLICT DO UPDATE command cannot affect row a second time"
+ * (SQLSTATE 21000). Clusters can legitimately produce a repeated id within a
+ * single run, and one repeat failed the WHOLE batch — seen_events stayed empty
+ * and day-over-day novelty never worked. Last write per id wins, as the
+ * database would have done anyway.
+ */
+function byId<T extends { id: string }>(rows: T[]): T[] {
+  return [...new Map(rows.map((r) => [r.id, r])).values()];
+}
+
+/**
+ * The Supabase client returns errors, it does not throw them. Every write in
+ * this file used to discard that value, so a rejected batch looked exactly
+ * like a successful one. Anything that fails now says so.
+ */
+function assertOk(op: string, error: { message?: string; code?: string } | null): void {
+  if (!error) return;
+  throw new Error(`Supabase ${op} failed${error.code ? ` (${error.code})` : ""}: ${error.message ?? "unknown error"}`);
+}
+
+/**
  * Supabase free tier. Service-role key is read from a server-only env var and
  * never reaches the browser — every call in this file runs in a route handler
  * or a server component.
@@ -36,21 +58,22 @@ export class SupabaseRepository implements Repository {
   }
 
   async putSeen(records: SeenRecord[]) {
-    if (!records.length) return;
-    await this.db.from("seen_events").upsert(
-      records.map((r) => ({
+    const rows = byId(records);
+    if (!rows.length) return;
+    const { error } = await this.db.from("seen_events").upsert(
+      rows.map((r) => ({
         id: r.id, first_seen_at: r.firstSeenAt, source_count: r.sourceCount,
         mentions: r.mentions, last_updated_at: new Date().toISOString(),
       })),
       { onConflict: "id" },
     );
+    assertOk("putSeen", error);
   }
 
   async saveItems(items: IntelligenceItem[]) {
-    items = rejectFabricated(items);
+    items = byId(rejectFabricated(items));
     if (!items.length) return;
-    if (!items.length) return;
-    await this.db.from("intelligence_items").upsert(
+    const { error } = await this.db.from("intelligence_items").upsert(
       items.map((i) => ({
         id: i.id, type: i.type, title: i.title, payload: i,
         published_at: i.publishedAt, first_seen_at: i.firstSeenAt,
@@ -59,6 +82,7 @@ export class SupabaseRepository implements Repository {
       })),
       { onConflict: "id" },
     );
+    assertOk("saveItems", error);
   }
 
   async listItems(limit = 400): Promise<IntelligenceItem[]> {
@@ -68,10 +92,11 @@ export class SupabaseRepository implements Repository {
   }
 
   async saveBrief(brief: DailyBrief) {
-    await this.db.from("daily_briefs").upsert(
+    const { error } = await this.db.from("daily_briefs").upsert(
       { id: brief.id, date: brief.date, payload: brief, generated_at: brief.generatedAt },
       { onConflict: "date" },
     );
+    assertOk("saveBrief", error);
   }
 
   async latestBrief(): Promise<DailyBrief | null> {
@@ -81,9 +106,10 @@ export class SupabaseRepository implements Repository {
   }
 
   async saveRun(run: SyncRun) {
-    await this.db.from("sync_runs").insert({
+    const { error } = await this.db.from("sync_runs").insert({
       id: run.id, started_at: run.startedAt, finished_at: run.finishedAt, payload: run,
     });
+    assertOk("saveRun", error);
   }
 
   async latestRun(): Promise<SyncRun | null> {
@@ -109,10 +135,13 @@ export class SupabaseRepository implements Repository {
     const { error } = await this.db.rpc("bump_ai_usage", { p_day: day, p_tokens: tokens });
     if (error) {
       const cur = await this.getUsage(day, day.slice(0, 7));
-      await this.db.from("ai_usage").upsert(
+      const { error } = await this.db.from("ai_usage").upsert(
         { day, requests: cur.requestsToday + 1, tokens: cur.estimatedTokensToday + tokens },
         { onConflict: "day" },
       );
+      // Usage accounting must never take down a run, but a silent failure here
+      // would mean the quota valve is guarding a number that stopped moving.
+      if (error) console.error(`Supabase incrementUsage failed: ${error.message}`);
     }
   }
 
