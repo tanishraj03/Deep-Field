@@ -26,7 +26,8 @@ VARS=(
 )
 
 for name in "${VARS[@]}"; do
-  value=$(grep "^${name}=" .env.local | head -1 | cut -d= -f2-)
+  # Last occurrence wins, matching how Next.js reads .env.local.
+  value=$(grep "^${name}=" .env.local | tail -1 | cut -d= -f2-)
   if [ -z "$value" ] || [[ "$value" == PASTE_* ]]; then
     echo "  skip    $name (empty or still a placeholder)"
     continue

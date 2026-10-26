@@ -128,12 +128,15 @@ export function Heat({ value, size = "md" }: { value: number; size?: "sm" | "md"
   return (
     <div className="flex flex-col items-end" aria-label={`Heat ${value} out of 100`}>
       <span className={cn("num font-semibold leading-none", dims, hot ? "text-ember" : "text-ink")}>{value}</span>
-      <span className={cn("mt-1 overflow-hidden rounded-pill bg-hair/10", size === "lg" ? "h-1.5 w-20" : "h-1 w-8")}>
-        <span
-          className="block h-full rounded-pill"
-          style={{ width: `${value}%`, background: hot ? "rgb(var(--ember))" : "rgb(var(--ink) / 0.55)" }}
-        />
-      </span>
+      {/* In dense lists the coloured number carries it; the bar is for cards. */}
+      {size !== "sm" && (
+        <span className={cn("mt-1 overflow-hidden rounded-pill bg-hair/10", size === "lg" ? "h-1.5 w-20" : "h-1 w-8")}>
+          <span
+            className="block h-full rounded-pill"
+            style={{ width: `${value}%`, background: hot ? "rgb(var(--ember))" : "rgb(var(--ink) / 0.55)" }}
+          />
+        </span>
+      )}
     </div>
   );
 }
@@ -151,6 +154,25 @@ export function RegionSplit({ IN, GLOBAL, compactLabel }: { IN: number; GLOBAL: 
   const total = IN + GLOBAL;
   if (!total) return null;
   const pIN = Math.round((IN / total) * 100);
+  if (compactLabel) {
+    // One line: "India only", "Global only", or the India share with a hairline bar.
+    const only = pIN === 100 ? "IN" : pIN === 0 ? "GLOBAL" : null;
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[0.6875rem] text-muted" title={`India ${pIN}% · Global ${100 - pIN}%`}>
+        {only ? (
+          <><Flag region={only} />{only === "IN" ? "India only" : "Global only"}</>
+        ) : (
+          <>
+            <span className="flex h-1 w-10 gap-px overflow-hidden rounded-pill">
+              <span className="h-full" style={{ width: `${pIN}%`, background: "rgb(var(--india))" }} />
+              <span className="h-full flex-1" style={{ background: "rgb(var(--global))" }} />
+            </span>
+            <span className="num">{pIN}% India</span>
+          </>
+        )}
+      </span>
+    );
+  }
   return (
     <div className="min-w-0">
       <div className="flex h-1.5 gap-[2px] overflow-hidden rounded-pill">
@@ -158,8 +180,8 @@ export function RegionSplit({ IN, GLOBAL, compactLabel }: { IN: number; GLOBAL: 
         {GLOBAL > 0 && <span className="h-full flex-1 rounded-pill" style={{ background: "rgb(var(--global))" }} />}
       </div>
       <div className="mt-1 flex justify-between text-[0.6875rem] text-muted">
-        <span className="flex items-center gap-1"><Flag region="IN" />{compactLabel ? `${pIN}%` : `India ${pIN}%`}</span>
-        <span className="flex items-center gap-1">{compactLabel ? `${100 - pIN}%` : `Global ${100 - pIN}%`}<Flag region="GLOBAL" /></span>
+        <span className="flex items-center gap-1"><Flag region="IN" />India {pIN}%</span>
+        <span className="flex items-center gap-1">Global {100 - pIN}%<Flag region="GLOBAL" /></span>
       </div>
     </div>
   );

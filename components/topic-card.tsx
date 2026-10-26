@@ -5,7 +5,6 @@ import { ArrowBigUp, MessageSquare, Users } from "lucide-react";
 import { nicheLabel } from "@/lib/niches";
 import type { RegionFilter, SourceId, Topic } from "@/lib/types";
 import { topicIn } from "@/lib/view";
-import { cn } from "@/lib/utils";
 import { Badge, Card, Delta, Heat, Metric, RegionSplit, SourceTag } from "./ui";
 
 const SENTIMENT: Record<Topic["sentiment"], { label: string; tone: "rise" | "fall" | "neutral" | "outline" }> = {
@@ -29,9 +28,14 @@ export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; re
     <Link href={topicHref(topic)} className="group block h-full">
       <Card hover className="flex h-full flex-col p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {rank !== undefined && <span className="num text-xs font-semibold text-faint">#{rank}</span>}
-            {showNiche && <Badge tone="outline">{nicheLabel(topic.niche)}</Badge>}
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-faint">
+            {(rank !== undefined || showNiche) && (
+              <span className="truncate">
+                {rank !== undefined && <span className="num font-semibold">#{rank}</span>}
+                {rank !== undefined && showNiche && " · "}
+                {showNiche && nicheLabel(topic.niche)}
+              </span>
+            )}
             <Delta isNew={topic.isNew} delta={topic.heatDelta} />
           </div>
           <Heat value={heat} />
@@ -41,19 +45,17 @@ export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; re
         </h3>
         {topic.summary && <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-muted">{topic.summary}</p>}
         <div className="mt-auto pt-4">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-3">
             <Metric icon={MessageSquare} value={metrics.comments} label="comments" />
             <Metric icon={ArrowBigUp} value={metrics.score} label="upvotes" />
             <span className="text-xs text-muted"><span className="num font-medium text-ink/80">{metrics.posts}</span> posts</span>
             <Metric icon={Users} value={metrics.communities} label="communities" />
           </div>
-          <div className={cn("mt-3 flex items-end justify-between gap-4")}>
+          <div className="mt-2 flex items-center justify-between gap-4">
             <div className="flex flex-wrap gap-x-2.5 gap-y-1">
               {(Object.entries(metrics.sources) as [SourceId, number][]).map(([s, n]) => <SourceTag key={s} source={s} count={n} />)}
             </div>
-            {region === "ALL" && (
-              <div className="w-24 shrink-0"><RegionSplit IN={metrics.postsIN} GLOBAL={metrics.postsGLOBAL} compactLabel /></div>
-            )}
+            {region === "ALL" && <RegionSplit IN={metrics.postsIN} GLOBAL={metrics.postsGLOBAL} compactLabel />}
           </div>
         </div>
       </Card>

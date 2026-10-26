@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, ExternalLink, Radar, RefreshCw, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ExternalLink, Radar, RefreshCw, TriangleAlert } from "lucide-react";
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import type { NicheScan, RegionFilter, Signal, SignalsScan, SourceId } from "@/lib/types";
 import { compact, relativeTime } from "@/lib/utils";
@@ -12,7 +12,7 @@ import { DailyBars, RankBars, Sparkline } from "./charts";
 import { useRegion } from "./region";
 import { ScanAllButton, ScanProgressPanel, useScanRunner } from "./scan-runner";
 import { TopicCard, TopicRow } from "./topic-card";
-import { Badge, Button, Card, EmptyState, Eyebrow, REGION_OPTIONS, Segmented, SOURCE_META, Stat } from "./ui";
+import { Button, Card, EmptyState, Eyebrow, REGION_OPTIONS, Segmented, SOURCE_META, Stat } from "./ui";
 
 const STALE_MS = 6 * 60 * 60_000;
 
@@ -36,7 +36,7 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
   if (!scans.length) {
     return (
       <div className="space-y-6">
-        <Header region={region} setRegion={setRegion} lastScan={null} count={0} />
+        <Header region={region} setRegion={setRegion} lastScan={null} />
         <EmptyState
           icon={Radar}
           title="Nothing scanned yet"
@@ -60,19 +60,16 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
     <div className="space-y-7">
       <Header
         region={region} setRegion={setRegion} lastScan={lastScan}
-        count={scans.reduce((a, s) => a + visibleTopics(s, region).length, 0)}
         action={<ScanAllButton stale={stale} size="sm" label={stale.length ? `Refresh ${stale.length === NICHES.length ? "all" : `${stale.length} stale`}` : "Rescan all"} />}
       />
 
       <Kpis scans={scans} region={region} />
 
-      {signals && <SpikingNow signals={signals} region={region} niche={niche} />}
-
       <NichePills niche={niche} setNiche={setNiche} scans={byNiche} region={region} />
 
       {niche ? (
         selected
-          ? <NicheDetail scan={selected} region={region} />
+          ? <NicheDetail scan={selected} region={region} spiking={signals && <SpikingNow signals={signals} region={region} niche={niche} />} />
           : (
             <EmptyState
               icon={Radar}
@@ -82,21 +79,22 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
             />
           )
       ) : (
-        <Overview scans={scans} region={region} setNiche={setNiche} missing={missing} />
+        <Overview scans={scans} region={region} setNiche={setNiche} missing={missing}
+          spiking={signals && <SpikingNow signals={signals} region={region} niche={null} />} />
       )}
     </div>
   );
 }
 
-function Header({ region, setRegion, lastScan, count, action }: {
-  region: RegionFilter; setRegion: (r: RegionFilter) => void; lastScan: string | null; count: number; action?: React.ReactNode;
+function Header({ region, setRegion, lastScan, action }: {
+  region: RegionFilter; setRegion: (r: RegionFilter) => void; lastScan: string | null; action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h1 className="text-[1.75rem] font-semibold tracking-tight">Pulse</h1>
         <p className="mt-1 text-sm text-muted">
-          What the internet is talking about right now{lastScan ? <> · <span className="num">{count}</span> conversations · updated {relativeTime(lastScan)}</> : null}
+          What the internet is talking about right now{lastScan ? <> · updated {relativeTime(lastScan)}</> : null}
         </p>
       </div>
       <div className="flex flex-wrap items-start gap-2">
@@ -117,7 +115,7 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
   const hottest = [...topics].sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat)[0];
 
   return (
-    <Card className="grid grid-cols-2 gap-x-6 gap-y-5 p-5 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-y-5 border-y py-4 md:grid-cols-4 md:divide-x md:divide-hair/10 [&>*]:md:px-5 [&>*:first-child]:md:pl-0">
       <Stat label="Conversations" value={compact(topics.length)} sub={<><span className="num">{compact(posts)}</span> threads grouped into topics</>} />
       <Stat label="Comments measured" value={compact(comments)} sub="as reported by each platform" />
       <Stat label="Posts this week" value={compact(weekly)} sub={`across ${scans.reduce((a, s) => a + s.communities.filter((c) => region === "ALL" || c.region === region).length, 0)} tracked communities`} />
@@ -126,7 +124,7 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
         value={rising}
         sub={hottest ? <span className="line-clamp-1">Hottest: {hottest.title}</span> : "—"}
       />
-    </Card>
+    </div>
   );
 }
 
@@ -190,9 +188,12 @@ function NichePills({ niche, setNiche, scans, region }: {
   );
 }
 
-function Overview({ scans, region, setNiche, missing }: {
-  scans: NicheScan[]; region: RegionFilter; setNiche: (n: string) => void; missing: string[];
+const BOARD_PREVIEW = 9;
+
+function Overview({ scans, region, setNiche, missing, spiking }: {
+  scans: NicheScan[]; region: RegionFilter; setNiche: (n: string) => void; missing: string[]; spiking: React.ReactNode;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const hottest = scans
     .flatMap((s) => visibleTopics(s, region))
     .sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat)
@@ -214,13 +215,15 @@ function Overview({ scans, region, setNiche, missing }: {
         </div>
       </section>
 
+      {spiking}
+
       <section>
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-[1.05rem] font-semibold tracking-tight">Every niche at a glance</h2>
           {missing.length > 0 && <span className="text-xs text-faint">{missing.length} niches not scanned yet</span>}
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {board.map(({ s, topics }) => {
+          {(showAll ? board : board.slice(0, BOARD_PREVIEW)).map(({ s, topics }) => {
             const n = NICHE_BY_ID.get(s.niche)!;
             const rows = volumeRows(s, region);
             const series = rows.map((r) => r.IN + r.GLOBAL);
@@ -236,7 +239,7 @@ function Overview({ scans, region, setNiche, missing }: {
                   <Sparkline values={series} labels={rows.map((r) => r.date)} className="w-24 shrink-0" height={30} color="rgb(var(--ink) / 0.55)" />
                 </button>
                 <div className="mt-3 flex-1">
-                  {topics.slice(0, 4).map((t) => <TopicRow key={t.id} topic={t} region={region} />)}
+                  {topics.slice(0, 3).map((t) => <TopicRow key={t.id} topic={t} region={region} />)}
                 </div>
                 <button onClick={() => setNiche(s.niche)} className="mt-2 flex items-center gap-1 self-start text-xs font-medium text-muted hover:text-accent">
                   All {topics.length} conversations <ArrowRight className="h-3 w-3" />
@@ -245,12 +248,20 @@ function Overview({ scans, region, setNiche, missing }: {
             );
           })}
         </div>
+        {board.length > BOARD_PREVIEW && (
+          <div className="mt-4 flex justify-center">
+            <Button size="sm" variant="ghost" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show fewer niches" : `Show all ${board.length} niches`}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAll ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
+        )}
       </section>
     </div>
   );
 }
 
-function NicheDetail({ scan, region }: { scan: NicheScan; region: RegionFilter }) {
+function NicheDetail({ scan, region, spiking }: { scan: NicheScan; region: RegionFilter; spiking: React.ReactNode }) {
   const n = NICHE_BY_ID.get(scan.niche)!;
   const topics = visibleTopics(scan, region);
   const { progress, run } = useScanRunner();
@@ -293,10 +304,17 @@ function NicheDetail({ scan, region }: { scan: NicheScan; region: RegionFilter }
       </div>
 
       {(failing.length > 0 || scan.aiNote) && (
-        <div className="flex flex-wrap gap-2">
-          {scan.aiNote && <Badge tone="outline"><TriangleAlert className="h-3 w-3" />{scan.aiNote}</Badge>}
-          {failing.map((s) => <Badge key={s.source} tone="outline"><TriangleAlert className="h-3 w-3" />{s.source}: {s.note ?? "unavailable"}</Badge>)}
-        </div>
+        <details className="group text-xs text-muted">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 hover:text-ink [&::-webkit-details-marker]:hidden">
+            <TriangleAlert className="h-3.5 w-3.5 text-ember" />
+            {failing.length + (scan.aiNote ? 1 : 0)} scan {failing.length + (scan.aiNote ? 1 : 0) === 1 ? "note" : "notes"}
+            <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+          </summary>
+          <ul className="mt-2 space-y-1 pl-5">
+            {scan.aiNote && <li>{scan.aiNote}</li>}
+            {failing.map((s) => <li key={s.source}><span className="text-ink/80">{s.source}:</span> {s.note ?? "unavailable"}</li>)}
+          </ul>
+        </details>
       )}
 
       {topics.length ? (
@@ -306,6 +324,8 @@ function NicheDetail({ scan, region }: { scan: NicheScan; region: RegionFilter }
       ) : (
         <EmptyState icon={Radar} title="No conversations in this region" body="Switch the region filter to see what the rest of the internet is saying." />
       )}
+
+      {spiking}
 
       <p className="text-center text-xs text-faint">
         Grouped by {scan.model ?? "shared keywords"} · {scan.communities.length} communities read · <Link href="/sources" className="underline-offset-2 hover:underline">how this works</Link>

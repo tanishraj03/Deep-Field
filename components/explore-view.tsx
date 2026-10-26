@@ -213,8 +213,8 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Insight insight={insight} state={insightState} error={insightError} onRetry={onRetryInsight} />
-        <div className="space-y-4">
-          <Card className="p-5">
+        <Card className="divide-y self-start">
+          <div className="p-5">
             <Eyebrow className="mb-3">Conversation per day · by source</Eyebrow>
             {series.length ? (
               <div className="space-y-4">
@@ -232,18 +232,18 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
                 )}
               </div>
             ) : <p className="text-sm text-muted">No dated conversation found.</p>}
-          </Card>
+          </div>
           {result.attention && result.attention.daily.length > 1 && (
-            <Card className="p-5">
+            <div className="p-5">
               <div className="mb-2 flex items-baseline justify-between">
                 <Eyebrow>Attention · Wikipedia views, 30 days</Eyebrow>
                 <a href={result.attention.url} target="_blank" rel="noreferrer" className="text-xs text-muted hover:text-accent">{result.attention.article}</a>
               </div>
               <Sparkline values={result.attention.daily.map((d) => d.views)} labels={result.attention.daily.map((d) => d.date)} height={64} unit=" views" />
-            </Card>
+            </div>
           )}
           {(result.regionSplit.IN + result.regionSplit.GLOBAL > 0 || result.communities.length > 0) && (
-            <Card className="p-5">
+            <div className="p-5">
               {result.region === "ALL" && result.regionSplit.IN + result.regionSplit.GLOBAL > 0 && (
                 <div className="mb-5">
                   <Eyebrow className="mb-2">India vs global · threads found</Eyebrow>
@@ -256,9 +256,9 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
                   <RankBars rows={result.communities.slice(0, 8).map((c) => ({ label: c.name, value: c.posts, region: c.region, href: `https://www.reddit.com/${c.name}/` }))} />
                 </>
               )}
-            </Card>
+            </div>
           )}
-        </div>
+        </Card>
       </div>
 
       <Card className="p-5">
