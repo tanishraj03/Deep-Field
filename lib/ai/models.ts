@@ -93,17 +93,12 @@ export const MODELS: ModelSlot[] = [
     candidates: ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"],
     reasoning: "low",
   },
+  // Groq retired its Llama models in 2026; Qwen is its fast general model now.
   {
-    id: "groq-llama", provider: "groq", label: "Llama 3.3 70B · Groq",
+    id: "groq-qwen", provider: "groq", label: "Qwen 3.8 · Groq",
     tags: ["Fastest", "Free"],
     bestFor: "Instant answers and brainstorming hooks",
-    candidates: ["llama-3.3-70b-versatile"],
-  },
-  {
-    id: "groq-llama4", provider: "groq", label: "Llama 4 · Groq",
-    tags: ["Newest Llama", "Free"],
-    bestFor: "Llama 4 Maverick/Scout — longer context than 3.3",
-    candidates: ["meta-llama/llama-4-maverick-17b-128e-instruct", "meta-llama/llama-4-scout-17b-16e-instruct"],
+    candidates: ["qwen/qwen3.8-27b"],
   },
   {
     id: "groq-gpt-oss", provider: "groq", label: "GPT-OSS 120B · Groq",

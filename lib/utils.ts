@@ -201,6 +201,11 @@ export function terms(text: string): string[] {
     .filter((w) => w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w));
 }
 
+/** A topic title cut down to a search query: its first few content words. */
+export function shortQuery(title: string, words = 4): string {
+  return title.replace(/[“”"'’:—–\-|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w.toLowerCase())).slice(0, words).join(" ");
+}
+
 export function jaccard(a: string[], b: string[]): number {
   const A = new Set(a), B = new Set(b);
   if (!A.size || !B.size) return 0;

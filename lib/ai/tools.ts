@@ -1,9 +1,11 @@
+import { queryDiscussion, topicDiscussion } from "@/lib/discussion";
 import { explore } from "@/lib/explore";
 import { NICHES, nicheLabel } from "@/lib/niches";
 import { loadPulse } from "@/lib/pulse/scan";
 import { readThread } from "@/lib/sources/reddit";
 import type { NicheScan, Post, RegionFilter, Topic } from "@/lib/types";
-import { compact, relativeTime } from "@/lib/utils";
+import { compact, relativeTime, truncate } from "@/lib/utils";
+import { commentIndex } from "@/lib/view";
 import type { ToolDef } from "./client";
 
 /** The assistant's tools. Each one reads the same data the interface shows. */
@@ -38,6 +40,21 @@ export const TOOLS: ToolDef[] = [
           region: REGION,
         },
         required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "whats_being_said",
+      description: "The most revealing comments, replies and Bluesky posts about a conversation: the ones that explain why it is spreading, the strongest pushback, first-hand experience and open questions, each with a note on what it reveals, plus the main themes. Pass `topic` for a scanned topic (its niche:id ref) or `query` for any subject. Takes 10-30 seconds the first time.",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: { type: "string", description: "A scanned topic's ref, niche:id (given in context when the chat was opened from a topic)" },
+          query: { type: "string", description: "Any subject, 1-4 words, when there is no topic ref" },
+          region: REGION,
+        },
       },
     },
   },
@@ -140,6 +157,27 @@ async function readThreadTool(args: { url: string }) {
   };
 }
 
+async function whatsBeingSaid(args: { topic?: string; query?: string; region?: RegionFilter }) {
+  const d = args.topic?.includes(":")
+    ? await topicDiscussion(args.topic.split(":")[0], args.topic.split(":")[1])
+    : await queryDiscussion(args.query ?? "", args.region ?? "ALL");
+  const index = commentIndex(d);
+  const threads = new Map(d.threads.map((t) => [t.postId, t]));
+  const line = (id: string) => {
+    const c = index.get(id);
+    if (!c) return null;
+    const t = threads.get(c.postId);
+    const nums = [c.score !== undefined ? `${compact(c.score)} ${c.source === "reddit" ? "upvotes" : "likes"}` : null, c.replyCount ? `${c.replyCount} replies` : null].filter(Boolean).join(", ");
+    return `${t?.community ?? c.source}${nums ? ` (${nums})` : ""}: “${truncate(c.text.replace(/\s+/g, " "), 320)}” — ${c.url}`;
+  };
+  return {
+    takeaway: d.takeaway || d.note || "",
+    threadsRead: d.threads.filter((t) => t.ok).map((t) => `${t.community}: ${t.title} (${t.comments.length} top comments)`),
+    picks: d.picks.map((p) => ({ role: p.role, whyItMatters: p.why, comment: line(p.commentId) })).filter((p) => p.comment),
+    themes: d.themes.map((t) => ({ theme: t.label, detail: t.detail, examples: t.commentIds.slice(0, 2).map(line).filter(Boolean) })),
+  };
+}
+
 export interface ToolOutcome { content: string; summary: string; ok: boolean }
 
 export async function runTool(name: string, rawArgs: string, maxChars: number): Promise<ToolOutcome> {
@@ -156,6 +194,10 @@ export async function runTool(name: string, rawArgs: string, maxChars: number): 
       const r = await researchTopic(args as Parameters<typeof researchTopic>[0]);
       result = r;
       summary = `${r.totalConversations} conversations about “${r.query}”`;
+    } else if (name === "whats_being_said") {
+      const r = await whatsBeingSaid(args as Parameters<typeof whatsBeingSaid>[0]);
+      result = r;
+      summary = `${r.picks.length} revealing comments from ${r.threadsRead.length} threads`;
     } else if (name === "read_thread") {
       const r = await readThreadTool(args as Parameters<typeof readThreadTool>[0]);
       result = r;

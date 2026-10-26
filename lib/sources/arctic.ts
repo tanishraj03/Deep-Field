@@ -86,6 +86,24 @@ export function threadComments(linkId: string, limit = 100) {
   }).then((d) => d ?? []);
 }
 
+/**
+ * A thread's comments as a tree, in Reddit's own listing shape — so the same
+ * parser reads this and Reddit's API. `limit` caps the total comments returned.
+ */
+export function commentTree(linkId: string, limit = 80) {
+  return call<RedditNode[]>("/comments/tree", { link_id: linkId, limit }).then((d) => d ?? []);
+}
+
+/** A node of a Reddit comment listing: a comment ("t1") or a "load more" stub. */
+export interface RedditNode {
+  kind: string;
+  data: {
+    id: string; author?: string; body?: string; score?: number; created_utc?: number;
+    parent_id?: string; stickied?: boolean; count?: number;
+    replies?: "" | { data?: { children?: RedditNode[] } };
+  };
+}
+
 /** Posts per day for one community, oldest first. Empty for a dead community. */
 export async function dailyPosts(sub: string, days = 14): Promise<{ date: string; value: number }[]> {
   const data = await call<{ date: number; value: number }[]>("/time_series", {

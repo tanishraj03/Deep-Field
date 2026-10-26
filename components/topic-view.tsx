@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { ArrowLeft, Check, Copy, Search, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { NICHE_BY_ID } from "@/lib/niches";
 import type { ContentAngle, NicheScan, Topic } from "@/lib/types";
-import { compact, relativeTime } from "@/lib/utils";
+import { compact, relativeTime, shortQuery } from "@/lib/utils";
 import { postsFor, topicIn } from "@/lib/view";
 import { RankBars } from "./charts";
 import { PostRow } from "./post-row";
 import { useRegion } from "./region";
 import { SentimentBadge } from "./topic-card";
 import { Badge, Button, Card, Delta, Eyebrow, Heat, REGION_OPTIONS, RegionSplit, Segmented, Stat } from "./ui";
+import { bestCommentByPost, TopComments, useDiscussion, VoicesPanel } from "./voices";
 
 export function AngleCard({ angle }: { angle: ContentAngle }) {
   const [copied, setCopied] = useState(false);
@@ -30,13 +32,17 @@ export function AngleCard({ angle }: { angle: ContentAngle }) {
   );
 }
 
-/** A short query for Explore: the topic title without punctuation and filler. */
-function researchQuery(title: string) {
-  return title.replace(/[“”"'’:—–\-|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2).slice(0, 4).join(" ");
-}
+type Tab = "overview" | "voices";
 
 export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
   const { region, setRegion } = useRegion();
+  const [tab, setTabState] = useState<Tab>(useSearchParams().get("tab") === "voices" ? "voices" : "overview");
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    window.history.replaceState(null, "", t === "voices" ? "?tab=voices" : window.location.pathname);
+  };
+  const discussion = useDiscussion({ topic: `${topic.niche}:${topic.id}` });
+  const best = bestCommentByPost(discussion.data);
   const n = NICHE_BY_ID.get(topic.niche);
   const { metrics, heat } = topicIn(topic, region);
   const posts = postsFor(topic, scan, region);
@@ -88,7 +94,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          <Link href={`/explore?q=${encodeURIComponent(researchQuery(topic.title))}`}>
+          <Link href={`/explore?q=${encodeURIComponent(shortQuery(topic.title))}`}>
             <Button variant="secondary"><Search className="h-3.5 w-3.5" />Research across the web</Button>
           </Link>
           <Link href={`/assistant?topic=${topic.niche}:${topic.id}`}>
@@ -97,6 +103,12 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
         </div>
       </Card>
 
+      <Segmented value={tab} onChange={setTab} layoutId="topic-tab" options={[
+        { value: "overview", label: "Overview" },
+        { value: "voices", label: "What people are saying" },
+      ]} />
+
+      {tab === "voices" ? <VoicesPanel state={discussion} /> : (
       <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         <Card className="p-5">
           <div className="mb-2 flex items-baseline justify-between">
@@ -104,11 +116,12 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
             <span className="text-[0.6875rem] text-faint">scanned {relativeTime(scan.scannedAt)}</span>
           </div>
           {posts.length
-            ? posts.map((p) => <PostRow key={p.id} post={p} />)
+            ? posts.map((p) => <PostRow key={p.id} post={p} quote={best.get(p.id)} />)
             : <p className="py-6 text-sm text-muted">No threads in this region — switch to Everywhere.</p>}
         </Card>
 
         <div className="space-y-4">
+          <TopComments state={discussion} onOpenAll={() => setTab("voices")} />
           {topic.angles.length > 0 && (
             <Card className="p-5">
               <Eyebrow className="mb-3">Content angles</Eyebrow>
@@ -133,6 +146,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
           </Card>
         </div>
       </div>
+      )}
     </div>
   );
 }

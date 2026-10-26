@@ -35,8 +35,7 @@ Switch models from the picker in the assistant. Each is tagged with what it's be
 |---|---|---|---|
 | Gemini Flash | **Best overall** | `GEMINI_API_KEY` | Free |
 | Gemini Flash-Lite | Highest free limits | `GEMINI_API_KEY` | Free |
-| Llama 3.3 70B · Groq | **Fastest** | `GROQ_API_KEY` | Free |
-| Llama 4 · Groq | Newest Llama | `GROQ_API_KEY` | Free |
+| Qwen 3.8 · Groq | **Fastest** | `GROQ_API_KEY` | Free |
 | GPT-OSS 120B · Groq | **Best free reasoning** | `GROQ_API_KEY` | Free |
 | Cerebras | Ultra-fast | `CEREBRAS_API_KEY` | Free (short context) |
 | OpenRouter Free | Most variety | `OPENROUTER_API_KEY` | Free, 50/day |

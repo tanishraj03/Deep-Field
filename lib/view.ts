@@ -1,4 +1,4 @@
-import type { NicheScan, Post, RegionFilter, Topic, TopicMetrics } from "./types";
+import type { Comment, Discussion, NicheScan, Post, RegionFilter, Topic, TopicMetrics } from "./types";
 
 /** What a topic looks like through the region filter. */
 export function topicIn(t: Topic, region: RegionFilter): { metrics: TopicMetrics; heat: number } {
@@ -32,4 +32,14 @@ export function weeklyPosts(scan: NicheScan, region: RegionFilter) {
   return scan.communities
     .filter((c) => region === "ALL" || c.region === region)
     .reduce((a, c) => a + c.postsWeek, 0);
+}
+
+/** Every comment and reply in a discussion, by id. */
+export function commentIndex(d: Discussion): Map<string, Comment> {
+  const m = new Map<string, Comment>();
+  for (const t of d.threads) for (const c of t.comments) {
+    m.set(c.id, c);
+    for (const r of c.replies) m.set(r.id, r);
+  }
+  return m;
 }

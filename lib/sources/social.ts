@@ -1,6 +1,6 @@
 import { guessNiche } from "@/lib/niches";
-import type { Signal } from "@/lib/types";
-import { hash, stripHtml } from "@/lib/utils";
+import type { Comment, Signal } from "@/lib/types";
+import { hash, stripHtml, truncate } from "@/lib/utils";
 import { getJson } from "./http";
 
 /**
@@ -47,4 +47,35 @@ export async function mastodonTrending(): Promise<Signal[]> {
       niche: guessNiche(t.name),
     };
   });
+}
+
+interface BskyPost {
+  uri: string;
+  author: { handle: string; displayName?: string };
+  record: { text?: string; createdAt?: string };
+  likeCount?: number; replyCount?: number; repostCount?: number;
+}
+
+/**
+ * The most-liked Bluesky posts about a topic from the past week. Keyless
+ * through api.bsky.app; the "public." host answers 403 to search.
+ */
+export async function blueskyPosts(query: string, limit = 25): Promise<Comment[]> {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const r = await getJson<{ posts?: BskyPost[] }>(
+    `https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&sort=top&limit=${limit}&since=${since}`);
+  return (r.posts ?? [])
+    .filter((p) => (p.record.text ?? "").trim().length > 20)
+    .map((p) => ({
+      id: `bskyp:${p.uri.split("/").pop()}`,
+      source: "bluesky" as const,
+      postId: `bluesky:${query}`,
+      author: p.author.displayName || p.author.handle,
+      text: truncate(p.record.text!.trim(), 900),
+      url: `https://bsky.app/profile/${p.author.handle}/post/${p.uri.split("/").pop()}`,
+      createdAt: p.record.createdAt ?? null,
+      score: p.likeCount,
+      replyCount: p.replyCount,
+      replies: [],
+    }));
 }

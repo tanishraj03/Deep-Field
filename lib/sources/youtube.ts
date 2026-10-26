@@ -1,6 +1,6 @@
 import { config } from "@/lib/config";
 import type { RegionCode } from "@/lib/niches";
-import type { Post } from "@/lib/types";
+import type { Comment, Post } from "@/lib/types";
 import { stripHtml, truncate } from "@/lib/utils";
 import { get, SourceError } from "./http";
 
@@ -23,7 +23,11 @@ async function yt<T>(path: string, params: Record<string, string>): Promise<T> {
   if (!config.youtube.apiKey) throw new SourceError("No YOUTUBE_API_KEY set");
   const qs = new URLSearchParams({ ...params, key: config.youtube.apiKey });
   const res = await get(`${API}/${path}?${qs}`, { gapMs: 150 });
-  if (res.status === 403) throw new SourceError("YouTube quota exhausted or key rejected (403)", 403);
+  if (res.status === 403) {
+    const reason = await res.clone().text().catch(() => "");
+    if (/commentsDisabled/.test(reason)) throw new SourceError("Comments are turned off on this video", 403);
+    throw new SourceError("YouTube quota exhausted or key rejected (403)", 403);
+  }
   if (!res.ok) throw new SourceError(`YouTube HTTP ${res.status}`, res.status);
   return res.json() as Promise<T>;
 }
@@ -71,4 +75,38 @@ export async function search(query: string, india: boolean): Promise<{ posts: Po
     posts: (v.items ?? []).map((x) => toPost(x, india ? "IN" : "GLOBAL")),
     total: s.pageInfo?.totalResults ?? ids.length,
   };
+}
+
+interface YtComment { id: string; snippet: { authorDisplayName: string; textOriginal?: string; textDisplay: string; likeCount?: number; publishedAt: string } }
+interface YtThread { id: string; snippet: { topLevelComment: YtComment; totalReplyCount?: number }; replies?: { comments?: YtComment[] } }
+
+/** A video's comments in YouTube's own "top" order, with a few replies each. 1 quota unit. */
+export async function videoComments(post: Post, max = 20): Promise<Comment[]> {
+  const videoId = post.id.replace(/^yt:/, "");
+  const r = await yt<{ items?: YtThread[] }>("commentThreads", {
+    part: "snippet,replies", videoId, order: "relevance", maxResults: String(Math.min(50, max)), textFormat: "plainText",
+  });
+  const toComment = (c: YtComment, parentId?: string): Comment => ({
+    id: `ytc:${c.id}`,
+    source: "youtube",
+    postId: post.id,
+    author: c.snippet.authorDisplayName.replace(/^@/, ""),
+    text: truncate(stripHtml(c.snippet.textOriginal ?? c.snippet.textDisplay), 900),
+    url: `https://www.youtube.com/watch?v=${videoId}&lc=${c.id}`,
+    createdAt: c.snippet.publishedAt,
+    score: c.snippet.likeCount,
+    parentId,
+    replies: [],
+  });
+  return (r.items ?? []).map((t) => {
+    const top = toComment(t.snippet.topLevelComment);
+    return {
+      ...top,
+      replyCount: t.snippet.totalReplyCount,
+      replies: (t.replies?.comments ?? [])
+        .map((c) => toComment(c, top.id))
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, 3),
+    };
+  });
 }

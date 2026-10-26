@@ -17,7 +17,7 @@ import { hash } from "@/lib/utils";
 const INDIA_CORE = ["india", "AskIndia", "indiadiscussion", "IndiaSpeaks", "bangalore", "mumbai", "delhi", "developersIndia", "IndiaInvestments", "IndianStreetBets"];
 const GLOBAL_CORE = ["OutOfTheLoop", "worldnews", "technology", "AskReddit", "news"];
 
-function titleMatches(title: string, query: string): boolean {
+export function titleMatches(title: string, query: string): boolean {
   const t = title.toLowerCase();
   return query.toLowerCase().split(/\s+/).filter((w) => w.length > 2).every((w) => t.includes(w));
 }

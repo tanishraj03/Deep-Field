@@ -1,9 +1,10 @@
 import { XMLParser } from "fast-xml-parser";
 import { config } from "@/lib/config";
 import { isIndianCommunity, type RegionCode } from "@/lib/niches";
-import type { Post } from "@/lib/types";
+import type { Comment, Post } from "@/lib/types";
 import { pool, stripHtml, truncate } from "@/lib/utils";
 import * as arctic from "./arctic";
+import type { RedditNode } from "./arctic";
 import { get, SourceError } from "./http";
 
 /**
@@ -310,4 +311,66 @@ export async function readThread(input: string): Promise<Thread> {
     comments: post && arctic.isMeasured(post.created_utc) ? post.num_comments : undefined,
     replies,
   };
+}
+
+/* ───────────── Top comments ───────────── */
+
+const GONE = /^\[(removed|deleted)\]$/;
+const BOTS = new Set(["AutoModerator", "[deleted]"]);
+
+/** Reddit markdown to readable text: links keep their words, emphasis marks go. */
+export function cleanMarkdown(s: string): string {
+  return decode(s)
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__|~~|\^)/g, "")
+    .replace(/&#x200B;/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function toComments(nodes: RedditNode[], post: Post, opts: { archive: boolean; depth: number }): Comment[] {
+  const out: Comment[] = [];
+  for (const n of nodes) {
+    if (n.kind !== "t1") continue;
+    const d = n.data;
+    if (!d.body || GONE.test(d.body) || BOTS.has(d.author ?? "") || d.stickied) continue;
+    const kids = d.replies && typeof d.replies === "object" ? d.replies.data?.children ?? [] : [];
+    const replyCount = kids.reduce((a, k) => a + (k.kind === "t1" ? 1 : k.data.count ?? 0), 0);
+    // Archive scores settle on the same ~36h clock as posts.
+    const measured = !opts.archive || arctic.isMeasured(d.created_utc ?? 0);
+    out.push({
+      id: `rdc:${d.id}`,
+      source: "reddit",
+      postId: post.id,
+      author: d.author ?? "",
+      text: truncate(cleanMarkdown(d.body), 900),
+      url: `${post.url}comment/${d.id}/`,
+      createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : null,
+      score: measured ? d.score : undefined,
+      replyCount,
+      replies: opts.depth > 0 ? toComments(kids, post, { ...opts, depth: opts.depth - 1 }).slice(0, 3) : [],
+    });
+  }
+  return out.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.replyCount ?? 0) - (a.replyCount ?? 0));
+}
+
+/** The most-upvoted comments in a thread, each with its best replies. */
+export async function threadComments(post: Post, max = 20): Promise<Comment[]> {
+  const id = post.id.replace(/^rd:/, "");
+  let nodes: RedditNode[];
+  if (hasRedditApi()) {
+    const res = await get(`https://oauth.reddit.com/comments/${id}?sort=top&limit=60&depth=2&raw_json=1`, {
+      headers: { Authorization: `Bearer ${await oauthToken()}`, "User-Agent": config.reddit.userAgent },
+      gapMs: 700,
+    });
+    if (!res.ok) throw new SourceError(`Reddit API HTTP ${res.status}`, res.status);
+    const json = (await res.json()) as { data?: { children?: RedditNode[] } }[];
+    nodes = json[1]?.data?.children ?? [];
+  } else {
+    nodes = await arctic.commentTree(id, 120);
+  }
+  const top = toComments(nodes, post, { archive: !hasRedditApi(), depth: 1 }).slice(0, max);
+  // Replies point at their parent, so a picked reply can show what it answers.
+  for (const c of top) for (const r of c.replies) r.parentId = c.id;
+  return top;
 }

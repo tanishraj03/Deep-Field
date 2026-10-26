@@ -30,7 +30,7 @@ async function describeContext(ctx: ChatContext | undefined): Promise<string | u
     const t = scan?.topics.find((x) => x.id === ctx.topicId);
     if (!scan || !t) return undefined;
     const posts = t.postIds.map((id) => scan.posts.find((p) => p.id === id)).filter((p) => !!p);
-    return `Topic "${t.title}" in ${nicheLabel(t.niche)} (heat ${t.heat}/100).
+    return `Topic "${t.title}" in ${nicheLabel(t.niche)} (heat ${t.heat}/100; ref for tools: ${t.niche}:${t.id}).
 ${t.summary} ${t.whyNow}
 ${t.metrics.posts} posts (${t.metrics.postsIN} India / ${t.metrics.postsGLOBAL} global), ${compact(t.metrics.comments)} comments, ${t.metrics.communities} communities. Sentiment: ${t.sentiment}.
 Threads:

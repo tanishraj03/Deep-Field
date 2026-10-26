@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Check, Loader2, MessageSquarePlus, Search, Sparkles, Square, Trash2, TrendingUp, X, BookOpen } from "lucide-react";
+import { ArrowUp, Check, Loader2, MessageSquarePlus, Search, Sparkles, Square, Trash2, TrendingUp, X, BookOpen, MessagesSquare } from "lucide-react";
 import type { PublicModel } from "@/lib/ai/models";
 import type { RegionFilter } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ const TOOL_LABEL: Record<string, { icon: React.ElementType; running: string }> =
   get_trending: { icon: TrendingUp, running: "Reading the latest scan" },
   research_topic: { icon: Search, running: "Searching Reddit, HN, YouTube, news and Wikipedia" },
   read_thread: { icon: BookOpen, running: "Reading the thread" },
+  whats_being_said: { icon: MessagesSquare, running: "Reading what people are saying" },
 };
 
 function toolArgsLabel(step: ToolStep) {
@@ -52,7 +53,7 @@ const CONTEXT_STARTERS = [
   "Why is this blowing up right now?",
   "Give me 5 hooks for Reels and Shorts",
   "What's the India angle on this?",
-  "What do people disagree about? Read the top thread.",
+  "What are people actually saying in the comments?",
 ];
 
 export function Assistant({ models, defaultModel, initialContext, contextLabel }: {

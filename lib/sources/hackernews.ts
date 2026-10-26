@@ -1,4 +1,5 @@
-import type { Post } from "@/lib/types";
+import type { Comment, Post } from "@/lib/types";
+import { stripHtml, truncate } from "@/lib/utils";
 import { getJson } from "./http";
 
 /** Hacker News via Algolia. Free, keyless, generous, and every count is real. */
@@ -48,4 +49,45 @@ export async function search(query: string): Promise<HnSearch> {
     daily.set(d, (daily.get(d) ?? 0) + 1);
   }
   return { week: top.nbHits, posts: top.hits.filter((h) => h.title).map(toPost), daily };
+}
+
+/* ───────────── Top comments ───────────── */
+
+interface Item { id: number; author: string | null; text: string | null; created_at_i: number; children: Item[] }
+
+/** HN comment HTML to text, keeping paragraph breaks. */
+const toText = (html: string) => html.split(/<p>/i).map(stripHtml).filter(Boolean).join("\n\n");
+
+function descendants(i: Item): number {
+  return i.children.reduce((a, c) => a + 1 + descendants(c), 0);
+}
+
+function toComment(i: Item, post: Post, depth: number, parentId?: string): Comment {
+  const id = `hnc:${i.id}`;
+  const kids = i.children.filter((c) => c.text && c.author);
+  return {
+    id,
+    source: "hackernews",
+    postId: post.id,
+    author: i.author ?? "",
+    text: truncate(toText(i.text ?? ""), 900),
+    url: `https://news.ycombinator.com/item?id=${i.id}`,
+    createdAt: new Date(i.created_at_i * 1000).toISOString(),
+    // HN publishes no comment points; the size of the sub-thread is its signal.
+    replyCount: descendants(i),
+    parentId,
+    replies: depth > 0
+      ? kids.sort((a, b) => descendants(b) - descendants(a)).slice(0, 3).map((k) => toComment(k, post, depth - 1, id))
+      : [],
+  };
+}
+
+/** The comments that drew the most discussion under one story. */
+export async function storyComments(post: Post, max = 20): Promise<Comment[]> {
+  const item = await getJson<Item>(`${BASE}/items/${post.id.replace(/^hn:/, "")}`);
+  return item.children
+    .filter((c) => c.text && c.author)
+    .map((c) => toComment(c, post, 1))
+    .sort((a, b) => (b.replyCount ?? 0) - (a.replyCount ?? 0))
+    .slice(0, max);
 }

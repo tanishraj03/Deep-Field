@@ -12,6 +12,7 @@ import { useRegion } from "./region";
 import { SentimentBadge } from "./topic-card";
 import { AngleCard } from "./topic-view";
 import { Badge, Button, Card, Eyebrow, REGION_OPTIONS, RegionSplit, Segmented, Skeleton, SOURCE_META } from "./ui";
+import { bestCommentByPost, TopComments, useDiscussion, VoicesPanel } from "./voices";
 
 const SCANNING = ["Reddit", "Hacker News", "YouTube", "News (GDELT)", "Wikipedia"];
 
@@ -162,6 +163,11 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
   onRefresh: () => void; onRetryInsight: () => void;
 }) {
   const [filter, setFilter] = useState<SourceId | "all">("all");
+  const [tab, setTab] = useState<"threads" | "voices">("threads");
+  const discussion = useDiscussion({ q: result.query, region: result.region });
+  const best = bestCommentByPost(discussion.data);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const openVoices = () => { setTab("voices"); tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const sources = SOURCE_ORDER.map((s) => result.sources.find((x) => x.source === s)).filter((s) => !!s);
   const shown = result.posts.filter((p) => filter === "all" || p.source === filter).slice(0, 40);
   const series = (["reddit", "news", "hackernews", "youtube"] as const).filter((k) => result.daily.some((d) => d[k] > 0));
@@ -213,7 +219,8 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Insight insight={insight} state={insightState} error={insightError} onRetry={onRetryInsight} />
-        <Card className="divide-y self-start">
+        <div className="space-y-4 self-start">
+        <Card className="divide-y">
           <div className="p-5">
             <Eyebrow className="mb-3">Conversation per day · by source</Eyebrow>
             {series.length ? (
@@ -259,11 +266,16 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
             </div>
           )}
         </Card>
+        <TopComments state={discussion} onOpenAll={openVoices} />
+        </div>
       </div>
 
-      <Card className="p-5">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <Eyebrow>The conversations</Eyebrow>
+      <div ref={tabsRef} className="flex scroll-mt-6 flex-wrap items-center justify-between gap-3">
+        <Segmented value={tab} onChange={setTab} layoutId="explore-tab" options={[
+          { value: "threads", label: <>The conversations <span className="num opacity-60">{result.posts.length}</span></> },
+          { value: "voices", label: "What people are saying" },
+        ]} />
+        {tab === "threads" && (
           <div className="flex flex-wrap gap-1">
             {(["all", ...SOURCE_ORDER] as const).map((s) => {
               const count = s === "all" ? result.posts.length : result.posts.filter((p) => p.source === s).length;
@@ -277,9 +289,13 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
               );
             })}
           </div>
-        </div>
-        {shown.length ? shown.map((p) => <PostRow key={p.id} post={p} />) : <p className="py-6 text-sm text-muted">Nothing found for this filter.</p>}
-      </Card>
+        )}
+      </div>
+      {tab === "voices" ? <VoicesPanel state={discussion} /> : (
+        <Card className="p-5">
+          {shown.length ? shown.map((p) => <PostRow key={p.id} post={p} quote={best.get(p.id)} />) : <p className="py-6 text-sm text-muted">Nothing found for this filter.</p>}
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <span>Where we can&apos;t count, look for yourself:</span>

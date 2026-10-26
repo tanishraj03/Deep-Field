@@ -171,3 +171,64 @@ export interface ExploreInsight {
   verdict: string;
   model: string;
 }
+
+/* ───────────── What people are saying ───────────── */
+
+/**
+ * One comment, reply or social post, as its platform reported it. Scores
+ * follow the same rule as posts: a number we do not have is undefined.
+ */
+export interface Comment {
+  id: string;
+  source: SourceId;
+  /** The Post this was said under; for Bluesky, the search it came from. */
+  postId: string;
+  author: string;
+  text: string;
+  url: string;
+  createdAt: string | null;
+  /** Upvotes or likes. Hacker News does not publish comment points. */
+  score?: number;
+  /** Replies the platform counted, not only the ones we kept. */
+  replyCount?: number;
+  /** Set on replies: the comment this answers. */
+  parentId?: string;
+  /** The best replies, one level deep. */
+  replies: Comment[];
+}
+
+/** The comments read from one thread, or one social search. */
+export interface CommentThread {
+  postId: string;
+  source: SourceId;
+  title: string;
+  url: string;
+  community: string;
+  region: RegionCode;
+  ok: boolean;
+  note?: string;
+  comments: Comment[];
+}
+
+/** A comment the analyst picked because it explains why the conversation is spreading. */
+export interface VoicePick {
+  commentId: string;
+  /** One line: what this comment reveals. Empty when ranked without AI. */
+  why: string;
+  role: "driver" | "pushback" | "insider" | "question" | "evidence" | "mood";
+}
+
+export interface Discussion {
+  /** What was read: a scanned topic or an Explore query. */
+  subject: { type: "topic"; niche: string; topicId: string; title: string } | { type: "query"; query: string; region: RegionFilter };
+  fetchedAt: string;
+  threads: CommentThread[];
+  /** Ranked, most revealing first. */
+  picks: VoicePick[];
+  themes: { label: string; detail: string; commentIds: string[] }[];
+  /** 1-2 sentences on what the comments say about why this is spreading. */
+  takeaway: string;
+  /** null when ranked by votes because no model was available. */
+  model: string | null;
+  note?: string;
+}
