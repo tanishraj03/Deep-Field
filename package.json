@@ -2,14 +2,14 @@
   "name": "deep-field",
   "version": "1.0.0",
   "private": true,
-  "description": "Daily social, funding, marketing and influencer-collaboration intelligence. Zero recurring cost.",
+  "description": "Conversation intelligence for content teams: what the internet is talking about, in every niche, in India and globally.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "cost:audit": "tsx scripts/cost-audit.ts"
+    "scan": "tsx scripts/scan.ts",
+    "check:niches": "tsx scripts/check-niches.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

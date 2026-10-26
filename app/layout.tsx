@@ -1,17 +1,21 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { Chrome } from "@/components/chrome";
+import { RegionProvider } from "@/components/region";
+import { Shell } from "@/components/shell";
 import { ThemeProvider } from "@/components/theme";
 
+const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
+
 export const metadata: Metadata = {
-  title: "Deep Field",
-  description: "What changed on the internet this morning, and who to talk to about it.",
+  title: { default: "Deep Field", template: "%s · Deep Field" },
+  description: "What the internet is talking about, in every niche, in India and globally — and what to make content about.",
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F2F1EE" },
-    { media: "(prefers-color-scheme: dark)", color: "#0B0C0E" },
+    { media: "(prefers-color-scheme: light)", color: "#F8F8F7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0A0C" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -20,22 +24,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
-        {/*
-          Both run before paint: the first frame is never the wrong theme, and a
-          first-time visitor never sees an empty feed flash before setup.
-        */}
+        {/* Runs before paint so the first frame is never the wrong theme. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('df-theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}
-try{var p=localStorage.getItem('df-prefs');var done=p&&JSON.parse(p).completedAt;if(!done&&location.pathname!=='/welcome'){location.replace('/welcome');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('df-theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`,
           }}
         />
       </head>
-      <body>
+      <body className="font-sans">
         <ThemeProvider>
-          <Chrome>{children}</Chrome>
+          <RegionProvider>
+            <Shell>{children}</Shell>
+          </RegionProvider>
         </ThemeProvider>
       </body>
     </html>

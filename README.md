@@ -1,329 +1,79 @@
 # Deep Field
 
-*Point it at an empty patch of the internet and wait. Things resolve.*
+**What is the internet talking about — in every niche, in India and globally — and what should we make content about?**
 
-Every morning this answers three questions:
+Deep Field scouts Reddit, Hacker News, YouTube, news, Wikipedia, Google Trends, Bluesky and Mastodon, groups what it finds into *conversations*, measures how big each one is, and gives you an AI research assistant to dig into any of them.
 
-**What's moving?** — emerging social trends and cultural signals
-**Who's spending?** — companies showing increased marketing activity
-**Who should we talk to?** — newly funded, newly launching, creator-compatible companies
+| Screen | What it answers |
+|---|---|
+| **Pulse** | What's being talked about right now, across 20 niches. Every conversation has real counts (threads, comments, upvotes, views), a heat score, whether it's new or rising, an India/Global split, the questions people are asking and content angles. Filter to India or Global. |
+| **Explore** | Type any topic. Get how many conversations happened this week, per source and per day, where (communities, India vs global), Wikipedia attention, the actual threads, and an AI read: sub-conversations, sentiment, questions, angles and a verdict. |
+| **Assistant** | Chat with a model of your choice. It has tools: it reads the latest scan, runs Explore searches and reads Reddit threads — so answers are grounded in live numbers, not memory. |
+| **Sources** | Which sources are working, which keys are set, when each niche was last scanned. |
 
-It collects from public feeds, deduplicates, scores deterministically, uses a free AI model
-only for interpretation, writes a three-minute brief, and posts it to Slack at 8:00 AM IST.
-
-**Recurring cost: ₹0 / $0.** That is an architectural constraint, not an aspiration —
-`npm run cost:audit` fails the build if anything in the tree can generate a charge.
-
----
-
-## 1. What it costs, service by service
-
-| Layer | Service | Plan | Card required? | Can it bill you? |
-|---|---|---|---|---|
-| Hosting | Vercel | Hobby | No | No |
-| AI | Google AI Studio (Gemini) | Free tier | No | No — Flash models only |
-| Database | Supabase | Free | No | No |
-| Automation | GitHub Actions | Free minutes | No | No — standard runners only |
-| Delivery | Slack incoming webhook | Free | No | No |
-| Data | 32 public RSS feeds + keyless APIs | Free | No | No |
-
-Nothing here has a metered overage path. If a free quota runs out, the app reduces
-coverage and says so. It never falls back to a paid service.
-
----
-
-## 2. Get it running for $0
-
-### Step 1 — Clone and install
+## Run it
 
 ```bash
-git clone <your-repo-url> deep-field
-cd deep-field
 npm install
+cp .env.example .env.local     # add GEMINI_API_KEY at minimum (free)
+npm run dev                    # http://localhost:3000
 ```
 
-### Step 2 — Run it immediately, with no keys at all
+Open Pulse and press **Run the first scan** — it walks every niche (about 20–30s each) and results appear as they land. Or from the terminal, with no time limit:
 
 ```bash
-cp .env.example .env.local
-npm run dev
+npm run scan                   # all niches + spiking signals
+npm run scan -- money food     # just these
+npm run scan -- --no-ai        # keyword grouping, no model calls
 ```
 
-Open http://localhost:3000. First run drops you into **Build your intelligence feed** —
-four questions (regions, platforms, industries, Slack) that define what you see. It is
-skippable, stored in your browser only, and rebuildable any time from Settings.
+## Models
 
-After that, `MOCK_DATA=true` is the default, so the entire product — every screen, filter,
-score and brief — works on realistic invented data. A **Mock data** badge appears on Today
-so demo data is never mistaken for intelligence.
+Switch models from the picker in the assistant. Each is tagged with what it's best at:
 
-Stop here if you only want to look at it.
+| Model | Tag | Key | Cost |
+|---|---|---|---|
+| Gemini Flash | **Best overall** | `GEMINI_API_KEY` | Free |
+| Gemini Flash-Lite | Highest free limits | `GEMINI_API_KEY` | Free |
+| Llama 3.3 70B · Groq | **Fastest** | `GROQ_API_KEY` | Free |
+| Llama 4 · Groq | Newest Llama | `GROQ_API_KEY` | Free |
+| GPT-OSS 120B · Groq | **Best free reasoning** | `GROQ_API_KEY` | Free |
+| Cerebras | Ultra-fast | `CEREBRAS_API_KEY` | Free (short context) |
+| OpenRouter Free | Most variety | `OPENROUTER_API_KEY` | Free, 50/day |
+| Mistral Medium | Strong writing | `MISTRAL_API_KEY` | Free Experiment plan |
+| Grok | Sharp on internet culture | `XAI_API_KEY` | **Paid** (xAI credits) |
 
-### Step 3 — Create a free Gemini API key
+Free-tier model ids change often, so each entry lists candidates and the first one the provider still serves is used (checked against its live `/models` list). Background work — grouping scans and writing Explore insights — only ever uses free models, and falls through to the next free model when one is overloaded.
 
-1. Go to https://aistudio.google.com/apikey
-2. Sign in with a Google account and click **Create API key**
-3. Copy it into `.env.local`:
+## Where the numbers come from
 
-```env
-GEMINI_API_KEY=your-key-here
-GEMINI_MODEL=gemini-2.5-flash
-MOCK_DATA=false
-```
+- **Reddit** — 158 communities across 20 niches, split India / Global (`lib/niches.ts`). Read through the [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift) archive because Reddit's JSON blocks anonymous clients and its RSS rate-limits within a few requests. Archive counts are accurate once a thread is ~36h old (checked against Reddit: 225 vs 218 comments); newer threads count as volume and are labelled. Set `REDDIT_CLIENT_ID/SECRET` to use Reddit's own API with live counts.
+- **Hacker News** (Algolia), **GDELT** (news articles per day, filterable to Indian publishers), **Wikipedia** pageviews (incl. most-read in India), **Google Trends** trending searches (IN/US), **Bluesky** and **Mastodon** trending — all keyless.
+- **YouTube** — trending per category and most-viewed uploads per topic. Free key: `YOUTUBE_API_KEY`.
+- X, Instagram and TikTok publish nothing comparable without paid access, so Explore links out to them rather than scraping.
 
-**Do not add a billing account.** The free tier does not need one.
+Nothing is estimated: a number a platform didn't report is left blank.
 
-Free-tier model IDs change. As of 2026 the free tier covers **Flash and Flash-Lite models
-only** — Pro models are paid. Two protections are built in:
+**Heat** (0–100) is one scale across all niches, computed from comments, upvotes, views, number of threads and communities, and velocity (threads in the last 24h), on log scales so one mega-thread can't drown out a conversation happening everywhere.
 
-- `FREE_ONLY=true` refuses to build a request for any Pro/Ultra model, with a red
-  **BLOCKED — PAID SERVICE** banner in Settings.
-- If your configured model ID has been retired, the app queries the models endpoint and
-  picks a free-tier Flash model itself rather than failing.
+## Deploy
 
-### Step 4 — Configure the free Supabase database *(optional)*
+1. Push to GitHub, import into Vercel, add the variables from `.env.local` (`./scripts/vercel-env.sh` does it for you).
+2. Optional: Supabase for storage that survives redeploys — run `supabase/schema.sql`, set `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. Without it, Vercel keeps data only per instance.
+3. Scheduled scans: add `APP_URL` and `CRON_SECRET` as GitHub Actions secrets. `.github/workflows/scan.yml` rescans every niche four times a day.
 
-Skip this and the app uses a bundled local store. You lose day-over-day novelty tracking
-on Vercel (serverless filesystems reset), so the "what changed since yesterday" engine
-works best with Supabase.
-
-1. Create a free project at https://supabase.com — no card required
-2. Open **SQL Editor**, paste all of `supabase/schema.sql`, run it
-3. From **Settings → API**, copy the URL and the **service_role** key:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-
-The service key is read only in server code and is never sent to the browser.
-
-> Free Supabase projects pause after a week of inactivity. The daily cron keeps yours awake.
-
-### Step 5 — Connect Slack
-
-1. https://api.slack.com/apps → **Create New App → From scratch**
-2. **Incoming Webhooks** → toggle on → **Add New Webhook to Workspace**
-3. Pick your channel, copy the webhook URL:
-
-```env
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T000/B000/xxxx
-SLACK_CHANNEL_LABEL=#intelligence
-```
-
-Test it from **Settings → Briefing → Send test to Slack**. No Zapier, no Make, no
-automation platform — one HTTP POST to a free webhook.
-
-### Step 6 — Set the remaining environment variables
-
-```bash
-openssl rand -hex 32   # use the output as CRON_SECRET
-```
-
-```env
-FREE_ONLY=true
-CRON_SECRET=<the value you just generated>
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
-```
-
-`CRON_SECRET` stops anyone who finds your URL from triggering ingestion and burning
-your AI quota.
-
-### Step 7 — Run locally
-
-```bash
-npm run dev                                    # interface
-curl -X POST localhost:3000/api/ingest \
-  -H "Authorization: Bearer $CRON_SECRET"      # one collection run
-```
-
-### Step 8 — Deploy to Vercel
-
-1. Push to GitHub
-2. https://vercel.com/new → import the repo → framework auto-detects as Next.js
-3. Paste every variable from `.env.local` into **Environment Variables**
-4. Deploy
-
-Stay on **Hobby**. Do not enable paid Observability, Edge Config or Analytics add-ons —
-nothing in this codebase uses them.
-
-### Step 9 — Turn on the scheduler
-
-In your GitHub repo, **Settings → Secrets and variables → Actions → New repository secret**:
-
-| Secret | Value |
-|---|---|
-| `APP_URL` | `https://your-app.vercel.app` |
-| `CRON_SECRET` | the same value as in Vercel |
-
-`.github/workflows/daily-intelligence.yml` then runs four short jobs a day:
-
-| IST | UTC cron | Stage |
-|---|---|---|
-| 06:00 | `30 0 * * *` | Collect from all sources |
-| 07:00 | `30 1 * * *` | Analyse and score |
-| 07:30 | `0 2 * * *` | Write the brief |
-| 08:00 | `30 2 * * *` | Deliver to Slack |
-
-Each takes seconds. Public repos get unlimited free minutes; private repos on GitHub Free
-get a monthly allowance this uses a rounding error of. The workflow pins
-`runs-on: ubuntu-latest` — never a larger paid runner.
-
-### Step 10 — Test the whole chain
-
-**Actions → Deep Field — Daily Brief → Run workflow → stage: `deliver`.**
-The brief should land in Slack within a minute, and the run summary shows exactly what
-was collected, deduplicated and skipped.
-
----
-
-## 3. How it works
+## Layout
 
 ```
-32 public sources
-      ↓  collect        one polite request each, 9s timeout, failures recorded not fatal
-   ~120 raw items
-      ↓  deduplicate    canonical URL → company+window → title similarity
-   ~60 unique events
-      ↓  classify       regex lanes: funding / marketing / trend
-      ↓  extract        amounts, rounds, investors — read from text or left null
-      ↓  filter + rank  relevance ≥ 0.35, sorted by novelty
-   ~25 relevant items
-      ↓  AI             top 24 only, one call each, hard quota valve
-      ↓  score          deterministic weights, every component shown
-   ~10 important signals
-      ↓  brief          2 model calls total
-      ↓  Slack
+app/                    Pulse (/), topic/[niche]/[id], explore, assistant, sources, api/*
+components/             Screens and UI (pulse, topic-view, explore-view, assistant, model-picker, charts)
+lib/niches.ts           ★ The niche catalogue: communities per niche, India and Global
+lib/sources/            One module per source (arctic, reddit, hackernews, youtube, news, wikipedia, trends, social)
+lib/pulse/              Scan a niche → cluster into conversations → score heat
+lib/explore/            Search any topic across sources; AI insight
+lib/ai/                 Model registry, one OpenAI-compatible client, prompts, assistant tools
+lib/store.ts            Key-value store: Supabase or a local file
+scripts/scan.ts         Command-line scan; scripts/check-niches.ts validates communities
 ```
 
-**Code does the work; AI does the interpretation.** Deduplication, date filtering,
-scoring and sorting are plain TypeScript. That is what keeps a daily run inside the free
-tier — a typical morning is about 25 model calls against a cap of 144.
-
-### Verify it yourself
-
-```bash
-npm run cost:audit             # fails if anything can bill you
-npx tsx scripts/verify-core.ts # 40 assertions on dedup, extraction, scoring, profiles
-npx tsx scripts/degrade-test.ts # simulates every source failing at once
-```
-
----
-
-## 4. What it will not do
-
-These are enforced in code, not just documented.
-
-- **Never invents a number.** A funding amount is `null` unless it was parsed out of
-  source text. Undisclosed rounds display *Not publicly disclosed*.
-- **Never states marketing spend.** It reports *Marketing activity ↑ HIGH* with the list
-  of observable signals behind it. A figure appears only when a publication printed one,
-  with a link to it.
-- **Never claims a platform said something.** Without access to Instagram or TikTok
-  internals, items are labelled `SOCIAL SIGNAL`, `PUBLIC WEB SIGNAL`, `EARLY SIGNAL` or
-  `REPORTED` by provenance. `REPORTED` requires a company announcement or two
-  independent publications.
-- **Never presents interpretation as fact.** Model output is tagged *AI interpretation*;
-  scores computed without measured evidence show *AI-estimated*.
-- **Never hides a failure.** "3 sources unavailable" appears on every screen rather than
-  a clean-looking but thinner feed.
-- **Never hides its own filtering.** The feed you build at setup is named on every screen
-  it affects, with the count it is hiding and a one-click way to see everything. A filter
-  nobody can see is indistinguishable from missing data.
-- **Never fills a company profile with plausible detail.** Profiles are assembled only
-  from items already collected — nothing is fetched on demand, and every profile ends with
-  an explicit *What we don't know*: undisclosed amounts, unnamed investors, absent spend
-  figures, and the categories no free public source provides.
-- **Never scrapes.** Public feeds and documented keyless APIs only. No CAPTCHA solving,
-  no auth bypass, no paywall circumvention, no anti-bot evasion. A 429 means that source
-  is done for the day.
-
----
-
-## 5. Repository layout
-
-```
-app/                     Screens and API routes
-  page.tsx               TODAY — the Control Centre
-  welcome/               First run — build your intelligence feed
-  company/[slug]/        Company profile, assembled from items already held
-  signals/ money/ spend/ opportunities/ saved/ brief/
-  settings/diagnostics/  Source health, quota, last ingestion
-  api/ingest/            The one endpoint the scheduler calls
-components/              Interface. cards.tsx, today.tsx, ui.tsx
-lib/
-  config.ts              ★ Single source of truth for "can this cost money?"
-  sources/               One adapter per source kind + the feed registry
-  ingestion/             Pipeline, classification, fact extraction
-  dedup/                 Three-pass event clustering
-  scoring/               Trend + opportunity models, weights fixed
-  company.ts             Pure profile derivation — a view over items, no fetching
-  prefs.ts               The feed built at setup, applied as a visible filter
-  ai/                    Provider interface, Gemini free, rules fallback, quota valve
-  db/                    Repository interface, Supabase, local fallback
-  slack/  brief/  mock/
-scripts/                 cost-audit, verify-core, degrade-test
-supabase/schema.sql      Free-tier schema with pruning built in
-.github/workflows/       Daily scheduler
-```
-
-### Swapping pieces later
-
-Every replaceable thing sits behind an interface:
-
-- **AI** — implement `AIProvider` (`lib/ai/provider.ts`). Six methods.
-- **Database** — implement `Repository` (`lib/db/types.ts`).
-- **Sources** — add a row to `lib/sources/registry.ts`, or a new adapter for a new kind.
-
-Nothing in the pipeline knows which implementation it is using.
-
----
-
-## 6. Free-tier reality
-
-Free infrastructure does not mean unlimited data, and the interface says so on every
-screen. When a quota runs out the app reduces coverage and keeps going:
-
-| Quota exhausted | What happens |
-|---|---|
-| Gemini daily cap | AI stops at 80% of the cap. Collection, dedup and scoring continue. The brief is written from rules and labelled *Rules only*. |
-| A source rate-limits | That source is skipped for the day and counted in "sources unavailable". No retry into the limit. |
-| Supabase unreachable | Falls back to the local store and flags it as non-persistent in Settings. |
-| No AI key at all | Everything works except interpretation. |
-
-Adjust the valves in `.env.local`:
-
-```env
-AI_MAX_REQUESTS_PER_DAY=180
-AI_SAFETY_THRESHOLD=0.8    # stop at 80% of the cap
-```
-
----
-
-## 7. Security
-
-- `.env.local` is gitignored. `.env.example` holds placeholders only.
-- The Gemini key, Supabase service key and Slack webhook are read exclusively in server
-  code — none is prefixed `NEXT_PUBLIC_` and none reaches the browser bundle.
-- `/api/ingest` and `/api/brief` require `Authorization: Bearer $CRON_SECRET`.
-- Row-level security is on for every Supabase table; no anon key is issued.
-
-**Do not add a billing method to any service unless that service absolutely requires it
-to function.** None of the services above does.
-
----
-
-## 8. Build phases
-
-The repository is complete, but if you are extending it, this is the order the pieces
-depend on each other in:
-
-1. Frontend on mock data → 2. Database → 3. Free-source ingestion → 4. Deduplication →
-5. Gemini connection → 6. AI analysis → 7. Opportunity scoring → 8. Daily brief →
-9. Slack → 10. GitHub Actions → 11. Vercel → 12. Full free-workflow test
-
----
-
-## Licence
-
-MIT. Do what you like with it.
+Add a niche or a community by editing `lib/niches.ts`, then `npm run check:niches` to confirm every community is alive.

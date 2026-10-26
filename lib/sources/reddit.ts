@@ -1,113 +1,313 @@
 import { XMLParser } from "fast-xml-parser";
 import { config } from "@/lib/config";
-import { canonicalUrl, fetchWithTimeout, hash, stripHtml, truncate } from "@/lib/utils";
-import type { RawItem } from "@/lib/types";
-import type { SourceAdapter, SourceDefinition } from "./types";
+import { isIndianCommunity, type RegionCode } from "@/lib/niches";
+import type { Post } from "@/lib/types";
+import { pool, stripHtml, truncate } from "@/lib/utils";
+import * as arctic from "./arctic";
+import { get, SourceError } from "./http";
 
-// processEntities:false — Reddit escapes whole HTML documents inside <content>,
-// which trips fast-xml-parser's 1000-entity expansion guard and threw away the
-// feed. We strip the markup ourselves anyway, so entities need no expanding.
-const parser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  trimValues: true,
-  processEntities: false,
-});
+/**
+ * Reddit, read three ways in order of preference:
+ *
+ *  1. Reddit's own API, when REDDIT_CLIENT_ID/SECRET are set — live counts.
+ *  2. The Arctic Shift archive — keyless and reliable; counts settle at ~36h.
+ *  3. Reddit's public RSS — Reddit's own ranking and sitewide search, but no
+ *     counts, and it rate-limits quickly. Used where ranking is the point.
+ */
 
-function asArray<T>(v: T | T[] | undefined): T[] {
-  return v === undefined || v === null ? [] : Array.isArray(v) ? v : [v];
+const RSS_GAP_MS = 2500;
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", processEntities: false });
+
+function decode(s: string): string {
+  return s.replace(/&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos|#39));/gi, (_m, dec, hex, name) => {
+    if (dec) return String.fromCodePoint(Number(dec));
+    if (hex) return String.fromCodePoint(parseInt(hex, 16));
+    return ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'" } as Record<string, string>)[String(name).toLowerCase()] ?? " ";
+  });
+}
+
+const asArray = <T,>(v: T | T[] | undefined): T[] => (v == null ? [] : Array.isArray(v) ? v : [v]);
+
+export const regionOf = (sub: string): RegionCode => (isIndianCommunity(sub) ? "IN" : "GLOBAL");
+
+function postUrl(sub: string, id: string) {
+  return `https://www.reddit.com/r/${sub}/comments/${id}/`;
+}
+
+function fromArctic(p: arctic.ArcticPost, regionHint?: RegionCode): Post {
+  const measured = arctic.isMeasured(p.created_utc);
+  return {
+    id: `rd:${p.id}`,
+    source: "reddit",
+    title: stripHtml(decode(p.title ?? "")),
+    url: postUrl(p.subreddit, p.id),
+    community: `r/${p.subreddit}`,
+    region: regionHint ?? regionOf(p.subreddit),
+    createdAt: new Date(p.created_utc * 1000).toISOString(),
+    score: measured ? p.score : undefined,
+    comments: measured ? p.num_comments : undefined,
+    measured,
+    snippet: p.selftext && !/^\[(removed|deleted)\]$/.test(p.selftext)
+      ? truncate(stripHtml(decode(p.selftext)), 220) : undefined,
+  };
+}
+
+/* ───────────── Reddit OAuth (optional) ───────────── */
+
+let token: { value: string; expires: number } | null = null;
+
+export const hasRedditApi = () => Boolean(config.reddit.clientId && config.reddit.clientSecret);
+
+async function oauthToken(): Promise<string> {
+  if (token && token.expires > Date.now() + 60_000) return token.value;
+  const basic = Buffer.from(`${config.reddit.clientId}:${config.reddit.clientSecret}`).toString("base64");
+  const res = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": config.reddit.userAgent,
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!res.ok) throw new SourceError(`Reddit API auth failed (HTTP ${res.status})`, res.status);
+  const json = (await res.json()) as { access_token: string; expires_in: number };
+  token = { value: json.access_token, expires: Date.now() + json.expires_in * 1000 };
+  return token.value;
+}
+
+interface ListingChild {
+  data: {
+    id: string; title: string; subreddit: string; score: number; num_comments: number;
+    created_utc: number; selftext?: string; over_18?: boolean; stickied?: boolean;
+  };
+}
+
+async function oauthListing(path: string): Promise<ListingChild["data"][]> {
+  const res = await get(`https://oauth.reddit.com${path}`, {
+    headers: { Authorization: `Bearer ${await oauthToken()}`, "User-Agent": config.reddit.userAgent },
+    gapMs: 700,
+  });
+  if (res.status === 429) throw new SourceError("Reddit API rate limited", 429);
+  if (!res.ok) throw new SourceError(`Reddit API HTTP ${res.status}`, res.status);
+  const json = (await res.json()) as { data?: { children?: ListingChild[] } };
+  return (json.data?.children ?? []).map((c) => c.data).filter((d) => !d.over_18 && !d.stickied);
+}
+
+function fromListing(d: ListingChild["data"], rank?: number): Post {
+  return {
+    id: `rd:${d.id}`,
+    source: "reddit",
+    title: stripHtml(decode(d.title)),
+    url: postUrl(d.subreddit, d.id),
+    community: `r/${d.subreddit}`,
+    region: regionOf(d.subreddit),
+    createdAt: new Date(d.created_utc * 1000).toISOString(),
+    score: d.score,
+    comments: d.num_comments,
+    measured: true,
+    hotRank: rank,
+    snippet: d.selftext ? truncate(stripHtml(decode(d.selftext)), 220) : undefined,
+  };
+}
+
+/* ───────────── RSS ───────────── */
+
+interface RssEntry { id: string; title: string; sub: string; createdAt: string | null; body: string }
+
+/** After a 429, RSS is left alone for a while instead of being asked again per niche. */
+let rssBlockedUntil = 0;
+
+async function rss(url: string): Promise<RssEntry[]> {
+  if (Date.now() < rssBlockedUntil) throw new SourceError("Reddit RSS rate limited (cooling down)", 429);
+  const res = await get(url, {
+    headers: { Accept: "application/atom+xml, application/xml;q=0.9" },
+    gapMs: RSS_GAP_MS,
+  });
+  if (res.status === 429) {
+    rssBlockedUntil = Date.now() + 10 * 60_000;
+    throw new SourceError("Reddit RSS rate limited", 429);
+  }
+  if (!res.ok) throw new SourceError(`Reddit RSS HTTP ${res.status}`, res.status);
+  const doc = parser.parse(await res.text()) as { feed?: { entry?: unknown } };
+  return asArray(doc.feed?.entry as Record<string, any> | Record<string, any>[]).map((e) => {
+    const link = String(e.link?.["@_href"] ?? "");
+    const m = link.match(/\/r\/([^/]+)\/comments\/([a-z0-9]+)/i);
+    return {
+      id: m?.[2] ?? "",
+      sub: m?.[1] ?? String(e.category?.["@_term"] ?? ""),
+      title: stripHtml(decode(String(e.title ?? ""))),
+      createdAt: e.published ? new Date(String(e.published)).toISOString() : null,
+      body: stripHtml(decode(String(e.content?.["#text"] ?? e.content ?? "")))
+        .replace(/submitted by\s*\/u\/\S+/i, "").replace(/\[(link|comments)\]/gi, "").trim(),
+    };
+  }).filter((e) => e.id && e.title);
+}
+
+/* ───────────── Niche scan ───────────── */
+
+export interface CommunityRead {
+  posts: Post[];
+  /** Posts in the last 24h, from the full fetch — not just those kept. */
+  fresh24h: number;
+  via: "reddit-api" | "archive";
 }
 
 /**
- * Reddit's <content> is an HTML document escaped into a text node, so it
- * arrives double-encoded. Entities must be decoded BEFORE tags are stripped —
- * stripHtml decodes afterwards, which would leave "&lt;p&gt;" as visible
- * "<p>" in the summary.
+ * Recent conversations in one community.
+ * Archive path: newest posts (volume, unmeasured) plus the newest posts past
+ * the ~36h mark (measured), each capped at 100 by the service.
  */
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos|nbsp|#39));/gi, (_m, dec, hex, name) => {
-      if (dec) return String.fromCodePoint(Number(dec));
-      if (hex) return String.fromCodePoint(parseInt(hex, 16));
-      switch (String(name).toLowerCase()) {
-        case "amp": return "&";
-        case "lt": return "<";
-        case "gt": return ">";
-        case "quot": return '"';
-        case "apos": case "#39": return "'";
-        default: return " ";
-      }
-    });
+export async function readCommunity(sub: string, region: RegionCode): Promise<CommunityRead> {
+  const dayAgo = Date.now() - 86_400_000;
+  if (hasRedditApi()) {
+    const hot = await oauthListing(`/r/${sub}/hot?limit=60&raw_json=1`);
+    const posts = hot.map((d, i) => ({ ...fromListing(d, i + 1), region }));
+    return {
+      posts,
+      fresh24h: hot.filter((d) => d.created_utc * 1000 >= dayAgo).length,
+      via: "reddit-api",
+    };
+  }
+
+  const [fresh, mature] = await Promise.all([
+    arctic.searchPosts({ subreddit: sub, after: "36h", limit: 100 }),
+    arctic.searchPosts({ subreddit: sub, after: "8d", before: "36h", limit: 100 }),
+  ]);
+  const freshPosts = fresh.map((p) => fromArctic(p, region));
+  const maturePosts = mature
+    .map((p) => fromArctic(p, region))
+    .sort((a, b) => engagement(b) - engagement(a));
+
+  return {
+    // Every measured post that drew any discussion, plus the newest fresh
+    // ones — fresh posts are how a conversation that started this morning
+    // shows up at all.
+    posts: [...maturePosts.filter((p) => (p.comments ?? 0) + (p.score ?? 0) > 2).slice(0, 30), ...freshPosts.slice(0, 30)],
+    fresh24h: fresh.filter((p) => p.created_utc * 1000 >= dayAgo).length,
+    via: "archive",
+  };
 }
 
 /**
- * Reddit's per-subreddit Atom feed.
- *
- * This used to read the listing JSON (/new.json), which Reddit now answers
- * with HTTP 403 for unauthenticated clients — it took out all five community
- * sources every run. The .rss feeds are still published openly and are read
- * here as intended: one request per subreddit per run, spaced by
- * REDDIT_MIN_GAP_MS, and a 429 ends that source for the day rather than being
- * retried into.
- *
- * What is lost is worth stating plainly: the JSON carried upvote and comment
- * counts, which were real measured numbers. Atom carries none, so items from
- * here now have no engagement evidence attached and must not be presented as
- * though they do. They stay labelled a community SIGNAL, never a measurement.
+ * Reddit's own "hot" ordering for a set of communities, in one request.
+ * Best-effort: it is the only live read of what is taking off right now when
+ * there is no API key, and when Reddit rate-limits it we simply go without.
  */
-const REDDIT_MIN_GAP_MS = 2500;
+export async function hotRanks(subs: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!subs.length) return out;
+  const entries = await rss(`https://www.reddit.com/r/${subs.join("+")}/hot/.rss?limit=100`);
+  entries.forEach((e, i) => out.set(`rd:${e.id}`, i + 1));
+  return out;
+}
 
-export const redditAdapter: SourceAdapter = {
-  kind: "reddit",
-  async fetch(def: SourceDefinition): Promise<RawItem[]> {
-    const res = await fetchWithTimeout(def.url, config.ingestion.perSourceTimeoutMs, {
-      headers: {
-        "User-Agent": config.ingestion.userAgent,
-        Accept: "application/atom+xml, application/xml, text/xml;q=0.9",
-      },
-      cache: "no-store",
-      minDelayMs: REDDIT_MIN_GAP_MS,
+export function engagement(p: Post): number {
+  return (p.comments ?? 0) * 1 + (p.score ?? 0) * 0.25 + (p.views ?? 0) / 2000;
+}
+
+/* ───────────── Explore ───────────── */
+
+export interface RedditSearch {
+  posts: Post[];
+  via: "reddit-api" | "rss" | "archive";
+  note?: string;
+}
+
+/**
+ * Sitewide search for the past week. RSS search returns Reddit's ranking
+ * without numbers, so the results are then looked up in the archive by id,
+ * which fills in real counts for every post old enough to have them.
+ */
+export async function searchReddit(
+  query: string,
+  opts: { within?: string[]; fallbackSubs: string[] },
+): Promise<RedditSearch> {
+  const q = encodeURIComponent(query);
+  // Restricting to a set of communities is one request either way: Reddit
+  // accepts r/a+b+c as a single multi-community path.
+  const scope = opts.within?.length ? `/r/${opts.within.join("+")}` : "";
+  const restrict = scope ? "&restrict_sr=on" : "";
+  const fallbackSubs = opts.within?.length ? opts.within : opts.fallbackSubs;
+
+  if (hasRedditApi()) {
+    const hits = await oauthListing(`${scope}/search?q=${q}${restrict}&sort=relevance&t=week&limit=100&raw_json=1`);
+    return { posts: hits.map((d, i) => fromListing(d, i + 1)), via: "reddit-api" };
+  }
+
+  try {
+    const entries = await rss(
+      `https://www.reddit.com${scope}/search.rss?q=${q}${restrict}&sort=relevance&t=week&limit=100`,
+    );
+    const known = new Map((await arctic.postsById(entries.map((e) => e.id)).catch(() => [])).map((p) => [p.id, p]));
+    const posts = entries.map((e, i): Post => {
+      const a = known.get(e.id);
+      if (a) return { ...fromArctic(a), hotRank: i + 1 };
+      return {
+        id: `rd:${e.id}`, source: "reddit", title: e.title, url: postUrl(e.sub, e.id),
+        community: `r/${e.sub}`, region: regionOf(e.sub), createdAt: e.createdAt,
+        measured: false, hotRank: i + 1, snippet: e.body ? truncate(e.body, 220) : undefined,
+      };
     });
-    if (res.status === 429) throw new Error("rate limited (429) — backing off until tomorrow");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return { posts, via: "rss" };
+  } catch (e) {
+    // Reddit refused the search. Fall back to the archive, which can only
+    // search inside named communities — so this is a narrower read, and says so.
+    // The archive's keyword search times out beyond about five days.
+    const subs = fallbackSubs.slice(0, 8);
+    const results = await pool(subs, 3, (s) =>
+      arctic.searchPosts({ subreddit: s, query, after: "5d", limit: 40 }).catch(() => []));
+    return {
+      posts: results.flat().map((p) => fromArctic(p)),
+      via: "archive",
+      note: `Reddit's search was rate limited, so ${subs.length} related communities were searched over 5 days instead.`,
+    };
+  }
+}
 
-    const doc = parser.parse(await res.text()) as Record<string, any>;
-    const entries = asArray<Record<string, any>>(doc?.feed?.entry);
-    const fetchedAt = new Date().toISOString();
-    const sub = def.name.replace(/^r\//, "");
-    const out: RawItem[] = [];
+/* ───────────── Thread reader (assistant) ───────────── */
 
-    for (const e of entries.slice(0, 25)) {
-      const title = stripHtml(decodeEntities(String(e.title ?? "")));
-      const link = e.link?.["@_href"] ?? e.link?.[0]?.["@_href"] ?? "";
-      const url = String(link);
-      if (!title || !url) continue;
+export interface Thread {
+  title: string;
+  community: string;
+  url: string;
+  body: string;
+  score?: number;
+  comments?: number;
+  replies: { text: string; score?: number }[];
+}
 
-      // Atom content is escaped HTML containing the post body plus Reddit's own
-      // "[link] [comments]" furniture. Strip it back to readable text.
-      const body = stripHtml(decodeEntities(String(e.content?.["#text"] ?? e.content ?? "")))
-        .replace(/submitted by\s*\/u\/\S+/i, "")
-        .replace(/\[(link|comments)\]/gi, "")
-        .trim();
+export function parseThreadId(input: string): string | null {
+  const m = input.match(/comments\/([a-z0-9]+)/i) ?? input.match(/^(?:rd:|t3_)?([a-z0-9]{5,10})$/i);
+  return m?.[1] ?? null;
+}
 
-      const canonical = canonicalUrl(url);
-      out.push({
-        key: hash(canonical),
-        title,
-        summary: truncate(body || `Discussion in r/${sub}`, 420),
-        url,
-        canonicalUrl: canonical,
-        sourceName: `r/${sub}`,
-        sourceType: def.sourceType,
-        publishedAt: e.published ? new Date(String(e.published)).toISOString()
-          : e.updated ? new Date(String(e.updated)).toISOString() : null,
-        fetchedAt,
-        region: def.region,
-        platform: "reddit",
-        categories: def.categories,
-        language: "en",
-      });
-    }
-    return out;
-  },
-};
+export async function readThread(input: string): Promise<Thread> {
+  const id = parseThreadId(input);
+  if (!id) throw new SourceError("Not a Reddit thread link or id");
+  const [post] = await arctic.postsById([id]);
+
+  let replies: { text: string; score?: number }[] = [];
+  try {
+    const entries = await rss(`https://www.reddit.com/comments/${id}/.rss?limit=60&sort=top`);
+    replies = entries.slice(1).map((e) => ({ text: truncate(e.body, 400) })).filter((r) => r.text);
+  } catch {
+    const comments = await arctic.threadComments(id, 80).catch(() => []);
+    replies = comments
+      .filter((c) => c.body && !/^\[(removed|deleted)\]$/.test(c.body))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 50)
+      .map((c) => ({ text: truncate(stripHtml(decode(c.body)), 400), score: c.score }));
+  }
+
+  if (!post && !replies.length) throw new SourceError("Thread not found");
+  return {
+    title: post ? stripHtml(decode(post.title)) : "(title unavailable)",
+    community: post ? `r/${post.subreddit}` : "",
+    url: post ? postUrl(post.subreddit, id) : `https://www.reddit.com/comments/${id}/`,
+    body: post?.selftext ? truncate(stripHtml(decode(post.selftext)), 1500) : "",
+    score: post && arctic.isMeasured(post.created_utc) ? post.score : undefined,
+    comments: post && arctic.isMeasured(post.created_utc) ? post.num_comments : undefined,
+    replies,
+  };
+}

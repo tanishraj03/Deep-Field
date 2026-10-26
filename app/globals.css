@@ -3,131 +3,127 @@
 @tailwind utilities;
 
 /*
-  Control Centre, not dashboard.
-  Two colours do all the work: `accent` (jade) marks anything live or measured,
-  `ember` is reserved exclusively for BREAKOUT. Nothing else is coloured.
+  Deep Field — conversation intelligence.
+  Quiet surfaces, one brand accent (violet) for interaction, `ember` for heat.
+  Charts use their own validated pair: Global = blue, India = orange
+  (checked with the dataviz validator in both modes — never reuse these for UI).
 */
 @layer base {
   :root {
-    --canvas: 242 241 238;
-    --ink: 22 23 26;
-    --muted: 104 108 116;
-    --faint: 143 147 155;
-    --hair: 18 20 24;
-    --accent: 26 104 88;
-    --ember: 186 74 52;
-
-    --glass: 255 255 255;
-    --glass-alpha: 0.62;
-    --glass-hair: 0.07;
-    --tint-a: 26 104 88;
-    --tint-b: 186 74 52;
-    --tint-alpha: 0.05;
+    --canvas: 248 248 247;
+    --surface: 255 255 255;
+    --raised: 244 244 242;
+    --ink: 17 17 19;
+    --muted: 88 90 98;
+    --faint: 138 140 148;
+    --hair: 17 17 19;
+    --hair-alpha: 0.08;
+    --accent: 98 80 214;
+    --ember: 226 84 44;
+    --rise: 22 140 84;
+    --fall: 200 60 60;
+    --global: 42 120 214;
+    --india: 235 104 52;
     color-scheme: light;
   }
 
   .dark {
-    --canvas: 11 12 14;
-    --ink: 240 241 244;
-    --muted: 140 145 154;
-    --faint: 104 109 118;
+    --canvas: 10 10 12;
+    --surface: 19 19 22;
+    --raised: 28 28 32;
+    --ink: 238 238 241;
+    --muted: 156 158 167;
+    --faint: 106 108 117;
     --hair: 255 255 255;
-    --accent: 92 209 176;
-    --ember: 234 126 98;
-
-    --glass: 255 255 255;
-    --glass-alpha: 0.055;
-    --glass-hair: 0.1;
-    --tint-alpha: 0.07;
+    --hair-alpha: 0.08;
+    --accent: 150 138 255;
+    --ember: 255 128 82;
+    --rise: 74 210 140;
+    --fall: 240 110 110;
+    --global: 57 135 229;
+    --india: 217 89 38;
     color-scheme: dark;
   }
 
-  * { border-color: rgb(var(--hair) / var(--glass-hair)); }
-
+  * { border-color: rgb(var(--hair) / var(--hair-alpha)); }
   html { -webkit-tap-highlight-color: transparent; }
 
   body {
-    background-color: rgb(var(--canvas));
+    background: rgb(var(--canvas));
     color: rgb(var(--ink));
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    overscroll-behavior-y: none;
   }
 
-  /* Ambient wash. Two very faint tints, fixed, so glass has something to refract. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: -20%;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      radial-gradient(48rem 34rem at 12% -6%, rgb(var(--tint-a) / var(--tint-alpha)), transparent 62%),
-      radial-gradient(40rem 30rem at 92% 8%, rgb(var(--tint-b) / var(--tint-alpha)), transparent 60%);
-  }
-
-  ::selection { background: rgb(var(--accent) / 0.22); }
+  ::selection { background: rgb(var(--accent) / 0.25); }
 
   :focus-visible {
     outline: 2px solid rgb(var(--accent));
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.001ms !important;
-      transition-duration: 0.001ms !important;
-    }
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   }
 }
 
 @layer components {
-  /* The one surface treatment. Used sparingly — flat sections sit between. */
-  .glass {
-    background-color: rgb(var(--glass) / var(--glass-alpha));
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    border: 1px solid rgb(var(--hair) / var(--glass-hair));
-    box-shadow:
-      0 1px 2px rgb(0 0 0 / 0.04),
-      0 10px 30px -18px rgb(0 0 0 / 0.3);
+  .card {
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--hair) / var(--hair-alpha));
+    border-radius: 1rem;
   }
-  .dark .glass { box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 16px 40px -24px rgb(0 0 0 / 0.8); }
-
-  /* Top light catch, the way a physical Control Centre tile picks up the screen. */
-  .glass-lit { position: relative; overflow: hidden; }
-  .glass-lit::after {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
-    pointer-events: none;
+  .dark .card { box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.03); }
+  .card-hover { transition: border-color 160ms ease, transform 200ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 200ms ease; }
+  .card-hover:hover {
+    border-color: rgb(var(--hair) / 0.16);
+    box-shadow: 0 8px 30px -16px rgb(0 0 0 / 0.25);
   }
-  .dark .glass-lit::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.13), transparent); }
 
   .eyebrow {
     font-size: 0.6875rem;
     line-height: 1rem;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.08em;
     font-weight: 600;
     text-transform: uppercase;
     color: rgb(var(--faint));
   }
 
-  .readout {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-  }
+  .num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
-  .hairline { border-top: 1px solid rgb(var(--hair) / var(--glass-hair)); }
-
-  .press { transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1); }
-  .press:active { transform: scale(0.975); }
+  .press { transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1); }
+  .press:active { transform: scale(0.97); }
 
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .fade-edge-r { mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); }
+
+  .shimmer {
+    background: linear-gradient(90deg, rgb(var(--hair) / 0.05) 0%, rgb(var(--hair) / 0.1) 50%, rgb(var(--hair) / 0.05) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  /* Assistant replies. */
+  .prose-chat { font-size: 0.9375rem; line-height: 1.65; }
+  .prose-chat p { margin: 0.5em 0; }
+  .prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 650; margin: 1.1em 0 0.4em; letter-spacing: -0.01em; }
+  .prose-chat h1 { font-size: 1.15rem; } .prose-chat h2 { font-size: 1.05rem; } .prose-chat h3 { font-size: 0.975rem; }
+  .prose-chat ul, .prose-chat ol { margin: 0.4em 0; padding-left: 1.25em; }
+  .prose-chat ul { list-style: disc; } .prose-chat ol { list-style: decimal; }
+  .prose-chat li { margin: 0.2em 0; }
+  .prose-chat li::marker { color: rgb(var(--faint)); }
+  .prose-chat a { color: rgb(var(--accent)); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: rgb(var(--accent) / 0.4); }
+  .prose-chat strong { font-weight: 650; }
+  .prose-chat code { font-size: 0.85em; padding: 0.1em 0.35em; border-radius: 6px; background: rgb(var(--hair) / 0.07); }
+  .prose-chat pre { padding: 0.75em 1em; border-radius: 10px; background: rgb(var(--hair) / 0.06); overflow-x: auto; }
+  .prose-chat pre code { background: none; padding: 0; }
+  .prose-chat blockquote { border-left: 2px solid rgb(var(--hair) / 0.15); padding-left: 0.9em; color: rgb(var(--muted)); }
+  .prose-chat table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin: 0.6em 0; }
+  .prose-chat th, .prose-chat td { border-bottom: 1px solid rgb(var(--hair) / var(--hair-alpha)); padding: 0.4em 0.5em; text-align: left; }
+  .prose-chat hr { margin: 1em 0; }
 }

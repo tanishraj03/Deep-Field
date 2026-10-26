@@ -1,116 +1,86 @@
-import type { IntelligenceItem } from "@/lib/types";
-import { truncate } from "@/lib/utils";
+import type { ExploreResult, Post } from "@/lib/types";
+import { compact, relativeTime } from "@/lib/utils";
 
-/**
- * House rules attached to every prompt. The model interprets; it never supplies
- * facts. If it does not know something it must say so, in these exact words.
- */
-export const GUARDRAILS = `You are an analyst for an influencer-marketing team in India.
-Rules you must never break:
-- Use ONLY the evidence given. Never add a company, investor, figure, date, campaign or engagement number that is not present.
-- If a fact is missing, write exactly: "Not publicly disclosed".
-- Never estimate marketing spend. Describe observable activity instead.
-- Never claim a social platform reported something unless the evidence says so.
-- Be concrete and plain. No hype adjectives, no "game-changing", no exclamation marks.
-- Reply with JSON only. No markdown fences, no commentary.`;
-
-function evidence(item: IntelligenceItem): string {
-  return [
-    `TITLE: ${item.title}`,
-    `SUMMARY: ${truncate(item.summary, 600)}`,
-    `PUBLISHED: ${item.publishedAt ?? "unknown"}`,
-    `REGION: ${item.region}`,
-    `CATEGORIES: ${item.categories.join(", ") || "unclassified"}`,
-    `SOURCES: ${item.sources.map((s) => s.name).join(", ")}`,
-    item.funding ? `FUNDING PARSED: amount=${item.funding.amountRaw ?? "not disclosed"} round=${item.funding.round ?? "not disclosed"} investors=${item.funding.investors.join(", ") || "not disclosed"}` : "",
-    item.marketing ? `MARKETING SIGNALS OBSERVED: ${item.marketing.signals.join(", ") || "none"}` : "",
-  ].filter(Boolean).join("\n");
+/** One post as a single dense line the model can cite by index. */
+export function postLine(p: Post, i: number): string {
+  const nums = [
+    p.comments !== undefined ? `${compact(p.comments)} comments` : null,
+    p.score !== undefined ? `${compact(p.score)} ${p.source === "youtube" ? "likes" : "upvotes"}` : null,
+    p.views !== undefined ? `${compact(p.views)} views` : null,
+    p.hotRank ? `hot #${p.hotRank}` : null,
+    !p.measured && p.source === "reddit" ? "new, not yet counted" : null,
+  ].filter(Boolean).join(" · ");
+  const snippet = p.snippet ? ` — ${p.snippet.slice(0, 140)}` : "";
+  return `[${i}] ${p.community} (${p.region === "IN" ? "India" : "Global"}) · ${relativeTime(p.createdAt)}${nums ? ` · ${nums}` : ""} | ${p.title}${snippet}`;
 }
 
-export const prompts = {
-  classifyTrend: (item: IntelligenceItem) => `${GUARDRAILS}
+export const CLUSTER_SYSTEM = `You are the research analyst behind a content team. You read raw social posts and name the distinct conversations the internet is having, so the team knows what to make content about.
 
-Interpret this signal for a team that books creator collaborations.
+Return JSON only, shaped exactly:
+{"topics":[{
+  "title": "specific, max 8 words — names the actual thing (a product, person, event, claim, habit), never a category",
+  "summary": "2 sentences: what people are actually saying, the tension or debate",
+  "whyNow": "1 sentence: why this is being discussed right now",
+  "sentiment": "positive" | "negative" | "mixed" | "neutral",
+  "questions": ["up to 3 questions people are asking, phrased the way they would ask them"],
+  "angles": [{"format": "Reel" | "Short" | "Carousel" | "Long-form video" | "Thread" | "Meme" | "Newsletter", "hook": "a specific, scroll-stopping hook or title for this conversation"}],
+  "posts": [indices of the posts that belong to this conversation]
+}]}
 
-${evidence(item)}
+Rules:
+- 6 to 12 topics, strongest first. A topic needs at least 2 posts, unless a single post drew far more discussion than the rest.
+- Every index must come from the list. A post belongs to at most one topic.
+- Skip weekly/megathreads, moderator notices, self-promotion and individual "help me" posts that are not part of a wider conversation — unless many people are asking the same thing, which IS a conversation ("Everyone is asking whether X…").
+- Prefer conversations with real engagement or that appear across several communities. Include India and Global conversations when both are present.
+- Write 2-3 angles per topic. Hooks must be specific to this conversation, not generic advice.
+- Never invent numbers, names or facts that are not in the posts.`;
 
-JSON shape:
-{"whatHappened":"2-4 factual sentences","whyItsMoving":"1-2 sentences on the mechanism","creatorOpportunity":"1-2 sentences on how a creator could use this","brandOpportunity":"1-2 sentences on which kinds of brands could activate around it"}`,
+export function clusterUser(nicheLabel: string, posts: Post[]): string {
+  return `Niche: ${nicheLabel}
+Posts (${posts.length}):
+${posts.map(postLine).join("\n")}`;
+}
 
-  analyzeFunding: (item: IntelligenceItem) => `${GUARDRAILS}
+export const INSIGHT_SYSTEM = `You are a content research analyst. You are given everything the internet said about one topic in the past week — counts by source and the actual posts — and you explain the conversation to a content creator deciding whether and how to make content about it.
 
-A company has raised money. Explain it, then explain why it might need influencer marketing.
+Return JSON only:
+{
+  "summary": "3-4 sentences: what the conversation is, its size relative to the data, and who is driving it",
+  "threads": [{"title": "a sub-conversation inside the topic", "detail": "1-2 sentences, citing communities or posts by name"}],
+  "sentiment": {"label": "positive" | "negative" | "mixed" | "neutral", "detail": "1 sentence on how people feel and why"},
+  "questions": ["up to 5 questions people are asking"],
+  "angles": [{"format": "Reel" | "Short" | "Carousel" | "Long-form video" | "Thread" | "Meme" | "Newsletter", "hook": "a specific hook"}],
+  "verdict": "1-2 sentences: is this worth making content on now, for which audience (India/global), and what the gap is"
+}
 
-${evidence(item)}
+3-5 threads, 4-6 angles. Ground every claim in the data. Quote counts only as given. If the data is thin, say so plainly instead of padding.`;
 
-JSON shape:
-{"whatTheyDo":"1-2 factual sentences","whyWeCare":"2-3 sentences on why this company may need creator-led marketing now","creatorCategories":["3-5 creator category names"]}`,
+export function insightUser(r: ExploreResult): string {
+  const sources = r.sources.map((s) =>
+    `- ${s.source}: ${s.ok ? `${s.total ?? "?"}${s.capped ? "+" : ""} in ${s.window}` : `unavailable (${s.note})`}`).join("\n");
+  const communities = r.communities.slice(0, 12).map((c) => `${c.name} (${c.posts})`).join(", ");
+  return `Topic: "${r.query}"  ·  Region filter: ${r.region === "ALL" ? "everywhere" : r.region === "IN" ? "India" : "Global"}
+Conversations found: ${r.totals.conversations} · comments ${r.totals.comments} · upvotes ${r.totals.score} · video views ${r.totals.views}
+India vs global posts: ${r.regionSplit.IN} / ${r.regionSplit.GLOBAL}
+By source:
+${sources}
+Top communities: ${communities || "none"}
+${r.attention ? `Wikipedia "${r.attention.article}" views, last 7 days: ${r.attention.daily.slice(-7).map((d) => d.views).join(", ")}` : ""}
 
-  analyzeMarketing: (item: IntelligenceItem) => `${GUARDRAILS}
+Posts:
+${r.posts.slice(0, 70).map(postLine).join("\n")}`;
+}
 
-A company is showing increased marketing activity. Do NOT state any spend figure.
+export function assistantSystem(today: string, context?: string): string {
+  return `You are Deep Field's research assistant. Deep Field tracks the conversations happening across Reddit, Hacker News, YouTube, news, Wikipedia, Google Trends, Bluesky and Mastodon, in India and globally, organised by niche. You help a content team decide what to make content about and go deeper on topics.
 
-${evidence(item)}
+Today is ${today}.
 
-JSON shape:
-{"whatWereSeeing":"2-3 sentences describing observable activity only","whyNow":"1-2 sentences of strategic reasoning","creatorCategories":["3-5 creator category names"],"possiblePitch":"one concrete collaboration concept, one sentence"}`,
-
-  scoreOpportunity: (item: IntelligenceItem) => `${GUARDRAILS}
-
-Explain why this company is or is not worth approaching for a creator collaboration.
-
-${evidence(item)}
-DETERMINISTIC SCORE: ${item.opportunityScore ?? "n/a"}/100
-COMPONENTS: ${(item.opportunityBreakdown ?? []).map((b) => `${b.label} ${b.value}/${b.weight}`).join("; ")}
-
-JSON shape:
-{"reasons":["3-5 short bullet reasons, each under 9 words"],"pitchIdeas":["2-3 concrete collaboration concepts, one sentence each"],"contactRoles":["2-4 job titles to approach"]}`,
-
-  companySummary: (name: string, items: IntelligenceItem[]) => `${GUARDRAILS}
-
-Summarise what we know about ${name} from these items only.
-
-${items.map((i, n) => `[${n + 1}] ${i.title} — ${truncate(i.summary, 200)}`).join("\n")}
-
-JSON shape: {"summary":"3-4 factual sentences"}`,
-
-  signal: (items: IntelligenceItem[]) => `${GUARDRAILS}
-
-Below is today's collected intelligence. Identify the single most important pattern
-connecting several items. Do not simply restate the top headline — name the pattern.
-
-${items.slice(0, 18).map((i, n) => `[${n + 1}] (${i.type}, ${i.region}) ${i.title} — ${truncate(i.summary, 160)}`).join("\n")}
-
-JSON shape:
-{"headline":"one sentence, max 45 words, describing the pattern","reasoning":"3-5 sentences explaining the evidence behind it and what it means for creator collaborations"}`,
-
-  contentBuckets: (items: IntelligenceItem[]) => `${GUARDRAILS}
-
-You are naming CONTENT BUCKETS: the recurring formats and subjects that are
-demonstrably working right now, so the team knows what to brief creators to make.
-
-Work only from the evidence below. Rules specific to this task:
-- Name 3 to 5 buckets. Fewer is fine if the evidence only supports fewer.
-- A bucket is a repeatable content idea ("founder voice-note desk tours"), not a
-  news summary ("Company X raised money").
-- "format" must be one of: short-form, long-form, both. Decide from the evidence
-  — a ranked Shorts view count is short-form, a 20-minute video is long-form.
-- "platforms" lists only platforms actually named in the evidence.
-- "evidence" must quote the exact TITLE lines you used. Never invent one.
-- If the evidence does not support a real pattern, return fewer buckets rather
-  than inventing one.
-
-EVIDENCE:
-${items.map(evidence).join("\n---\n")}
-
-JSON: {"buckets":[{"name":"","whyItWorks":"","format":"short-form|long-form|both","platforms":[""],"evidence":[""]}]}`,
-
-  dailyBrief: (items: IntelligenceItem[]) => `${GUARDRAILS}
-
-Write a morning brief readable in under three minutes.
-
-${items.slice(0, 22).map((i, n) => `[${n + 1}] (${i.type}, ${i.region}, score ${i.opportunityScore ?? i.trendScore ?? "-"}) ${i.title} — ${truncate(i.summary, 160)}`).join("\n")}
-
-JSON shape:
-{"fiveThings":["exactly 5 items, one sentence each"],"whatsMoving":["up to 3 one-line social signals"],"moneyMoves":["up to 3 one-line funding notes"],"whosSpending":["up to 3 one-line marketing notes"],"whoToTalkTo":["up to 3 lines, format: Company — why"],"watch":["up to 3 early signals not yet mainstream"]}`,
-};
+How you work:
+- Use your tools to get real data before answering anything about what people are saying, how big a conversation is, or what is trending. Do not answer those from memory.
+- get_trending gives the latest scanned conversations for a niche and region. research_topic searches any topic across sources and returns real counts. read_thread reads a Reddit thread's top replies.
+- Cite numbers exactly as the tools give them, and name the communities and sources. Link to threads with markdown links when useful.
+- Be specific and opinionated about content: concrete hooks, formats (Reels, Shorts, carousels, long-form, threads), audience (India vs global) and the gap nobody is covering yet.
+- Keep answers tight. Use short headings and bullets. No filler.
+- If a tool fails or the data is thin, say so plainly.${context ? `\n\nThe user opened this chat from the following research. Use it as context:\n${context}` : ""}`;
+}

@@ -1,33 +1,32 @@
 import type { Config } from "tailwindcss";
 
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config: Config = {
   darkMode: "class",
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        canvas: "rgb(var(--canvas) / <alpha-value>)",
-        ink: "rgb(var(--ink) / <alpha-value>)",
-        muted: "rgb(var(--muted) / <alpha-value>)",
-        faint: "rgb(var(--faint) / <alpha-value>)",
-        hair: "rgb(var(--hair) / <alpha-value>)",
-        accent: "rgb(var(--accent) / <alpha-value>)",
-        ember: "rgb(var(--ember) / <alpha-value>)",
+        canvas: token("canvas"),
+        surface: token("surface"),
+        raised: token("raised"),
+        ink: token("ink"),
+        muted: token("muted"),
+        faint: token("faint"),
+        hair: token("hair"),
+        accent: token("accent"),
+        ember: token("ember"),
+        rise: token("rise"),
+        fall: token("fall"),
+        india: token("india"),
+        global: token("global"),
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"Segoe UI Variable"', '"Segoe UI"', 'Inter', 'Roboto', 'system-ui', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', '"Cascadia Mono"', '"Roboto Mono"', 'monospace'],
+        sans: ["var(--font-inter)", "Inter", "-apple-system", "BlinkMacSystemFont", '"SF Pro Text"', '"Segoe UI Variable"', '"Segoe UI"', "Roboto", "system-ui", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", '"SF Mono"', "Menlo", "monospace"],
       },
-      fontSize: {
-        eyebrow: ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.14em", fontWeight: "600" }],
-      },
-      borderRadius: { tile: "1.375rem", module: "1.75rem", pill: "999px" },
-      boxShadow: {
-        tile: "0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.14)",
-        module: "0 2px 6px rgb(0 0 0 / 0.05), 0 24px 60px -28px rgb(0 0 0 / 0.28)",
-        inset: "inset 0 1px 0 0 rgb(255 255 255 / 0.5)",
-      },
-      backdropBlur: { glass: "28px" },
+      borderRadius: { pill: "999px" },
       transitionTimingFunction: { ios: "cubic-bezier(0.32, 0.72, 0, 1)" },
     },
   },

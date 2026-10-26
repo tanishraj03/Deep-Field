@@ -1,226 +1,173 @@
-// Shared vocabulary for the whole system. If a concept is not here, it does not exist.
+// Shared vocabulary. If a concept is not here, it does not exist in the app.
 
-export type Region = "IN" | "US" | "EU" | "SEA" | "ME" | "GLOBAL";
-export type Scope = "INDIA" | "GLOBAL" | "ALL";
+import type { RegionCode } from "./niches";
+export type { RegionCode };
 
-export type Platform =
-  | "instagram" | "tiktok" | "youtube" | "x" | "linkedin"
-  | "reddit" | "threads" | "facebook" | "google-trends" | "web";
+/** "ALL" is the unfiltered view; the other two are where a post happened. */
+export type RegionFilter = "ALL" | RegionCode;
 
-export type Category =
-  | "Culture" | "Entertainment" | "Music" | "Fashion" | "Food" | "Gaming"
-  | "AI" | "Technology" | "Finance" | "Beauty" | "Fitness" | "Education"
-  | "Travel" | "Consumer" | "Creator Economy" | "SaaS" | "Fintech"
-  | "Healthtech" | "Edtech" | "D2C" | "Mobility" | "Climate" | "Media"
-  | "Productivity" | "Developer Tools" | "Robotics" | "Deep Tech";
-
-export type ItemType = "trend" | "funding" | "marketing" | "company";
-
-/** How much we are allowed to claim about a statement. Never blur these. */
-export type Veracity = "FACT" | "SIGNAL" | "AI_INTERPRETATION";
-
-export type Confidence = "High" | "Medium" | "Low";
-
-export type SourceType =
-  | "company-announcement" | "platform-announcement" | "regulatory"
-  | "reputable-publication" | "industry-publication" | "public-social"
-  | "community" | "aggregator" | "trend-index";
-
-/** Source tier 1 (best provenance) → 8. Drives conflict resolution + confidence. */
-export const SOURCE_TIER: Record<SourceType, number> = {
-  "company-announcement": 1,
-  "platform-announcement": 2,
-  regulatory: 3,
-  "reputable-publication": 4,
-  "industry-publication": 5,
-  "public-social": 6,
-  community: 7,
-  aggregator: 8,
-  "trend-index": 6,
-};
-
-export interface SourceRef {
-  name: string;
-  url: string;
-  type: SourceType;
-  publishedAt: string | null;
-}
-
-/** A single normalised item pulled from one source, before clustering. */
-export interface RawItem {
-  key: string;
-  title: string;
-  summary: string;
-  url: string;
-  canonicalUrl: string;
-  sourceName: string;
-  sourceType: SourceType;
-  publishedAt: string | null;
-  fetchedAt: string;
-  region: Region;
-  platform: Platform;
-  categories: Category[];
-  language: string;
-}
-
-export interface FundingFacts {
-  companyName: string;
-  amountUsd: number | null;
-  amountRaw: string | null;
-  round: string | null;
-  investors: string[];
-  announcedAt: string | null;
-  /** true only when the numbers were parsed out of source text, never inferred. */
-  amountDisclosed: boolean;
-}
-
-export interface MarketingFacts {
-  companyName: string;
-  activityLevel: "HIGH" | "ELEVATED" | "NOTABLE";
-  signals: string[];
-  spendReported: { amountRaw: string; sourceUrl: string } | null;
-}
-
-export interface ScoreBreakdown {
-  label: string;
-  weight: number;
-  value: number;
-  note: string;
-}
-
-export interface IntelligenceItem {
-  id: string;
-  type: ItemType;
-  title: string;
-  summary: string;
-  sourceUrl: string;
-  sourceName: string;
-  publishedAt: string | null;
-  firstSeenAt: string;
-  lastUpdatedAt: string;
-  region: Region;
-  platform: Platform;
-  categories: Category[];
-
-  confidence: number;   // 0-1
-  relevance: number;    // 0-1
-  novelty: number;      // 0-1
-
-  sources: SourceRef[];
-  duplicatesMerged: number;
-  isUpdate: boolean;
-  isNew: boolean;
-
-  // Trend-shaped
-  trendScore?: number;
-  trendLabel?: "BREAKOUT" | "RISING" | "WATCH" | "LOW SIGNAL";
-  trendBreakdown?: ScoreBreakdown[];
-  scoreIsEstimated?: boolean;
-
-  // Funding-shaped
-  funding?: FundingFacts;
-
-  // Marketing-shaped
-  marketing?: MarketingFacts;
-
-  // Opportunity-shaped
-  opportunityScore?: number;
-  opportunityBreakdown?: ScoreBreakdown[];
-  creatorCategories?: string[];
-  pitchIdeas?: string[];
-  contactRoles?: string[];
-
-  // Narrative, clearly attributed
-  analysis?: {
-    whatHappened: string;
-    whyItsMoving: string;
-    creatorOpportunity: string;
-    brandOpportunity: string;
-    whyWeCare: string;
-    veracity: Veracity;
-    generatedBy: "gemini" | "rules";
-  };
-  confidenceLabel: Confidence;
-  signalLabel: "EARLY SIGNAL" | "PUBLIC WEB SIGNAL" | "SOCIAL SIGNAL" | "REPORTED";
-}
+export type SourceId =
+  | "reddit" | "hackernews" | "youtube" | "news" | "wikipedia"
+  | "google-trends" | "bluesky" | "mastodon";
 
 /**
- * A recurring content pattern observed across today's items — the "what should
- * we actually make" layer. Interpretation, never fact: every bucket must cite
- * the items it was drawn from so a reader can check the evidence themselves.
+ * One conversation as it exists on its platform — a Reddit thread, an HN
+ * story, a video. Every number on it was reported by the platform; nothing
+ * is estimated. A number we do not have is undefined, never zero.
  */
-export interface ContentBucket {
-  name: string;
-  whyItWorks: string;
-  format: "short-form" | "long-form" | "both";
-  platforms: string[];
-  /** Titles of the collected items this pattern was read from. */
-  evidence: string[];
-  generatedBy: "gemini" | "rules";
+export interface Post {
+  id: string;
+  source: SourceId;
+  title: string;
+  url: string;
+  /** r/india, a channel name, a publication. */
+  community: string;
+  region: RegionCode;
+  createdAt: string | null;
+  score?: number;
+  comments?: number;
+  views?: number;
+  /**
+   * False for Reddit posts younger than ~36h read from the archive: their
+   * counts have not been collected yet, so they show volume, not engagement.
+   */
+  measured: boolean;
+  /** Position in the platform's own "hot" ranking, when we read one. */
+  hotRank?: number;
+  snippet?: string;
 }
 
-export interface DailyBrief {
+export type Sentiment = "positive" | "negative" | "mixed" | "neutral";
+
+export interface ContentAngle {
+  format: string;
+  hook: string;
+}
+
+/** A cluster of posts that are the same conversation. */
+export interface Topic {
   id: string;
-  date: string;
-  generatedAt: string;
-  theSignal: { headline: string; reasoning: string; generatedBy: "gemini" | "rules" };
-  fiveThings: string[];
-  whatsMoving: string[];
-  moneyMoves: string[];
-  whosSpending: string[];
-  whoToTalkTo: string[];
-  watch: string[];
-  contentBuckets: ContentBucket[];
-  /**
-   * Why contentBuckets is empty, when it is. "No pattern in today's items" and
-   * "the model call failed" are different facts and the reader deserves to
-   * know which — a blank section that cannot explain itself hid a broken
-   * evidence check for days.
-   */
-  bucketNote?: string;
+  niche: string;
+  title: string;
+  summary: string;
+  whyNow: string;
+  sentiment: Sentiment;
+  questions: string[];
+  angles: ContentAngle[];
+  postIds: string[];
+  metrics: TopicMetrics;
+  /** 0–100 on one scale across every niche. */
+  heat: number;
+  /** The same numbers counting only India's or only Global's posts — what the region filter shows. */
+  byRegion: Record<RegionCode, { metrics: TopicMetrics; heat: number }>;
+  /** Change against the closest topic in the previous scan; null if new. */
+  heatDelta: number | null;
+  isNew: boolean;
+  /** "ai" when a model grouped it, "rules" when keyword overlap did. */
+  groupedBy: "ai" | "rules";
+}
+
+export interface TopicMetrics {
+  posts: number;
+  comments: number;
+  score: number;
+  views: number;
+  communities: number;
+  /** Posts in Indian communities, for the India/Global split. */
+  postsIN: number;
+  postsGLOBAL: number;
+  /** Posts younger than 24h — the velocity signal. */
+  last24h: number;
+  sources: Partial<Record<SourceId, number>>;
+}
+
+/** Per-community volume, measured by Reddit's archive. */
+export interface CommunityVolume {
+  name: string;
+  region: RegionCode;
+  /** Posts per day over the last ~2 weeks, oldest first. */
+  daily: number[];
+  postsWeek: number;
 }
 
 export interface SourceRun {
   source: string;
   ok: boolean;
-  items: number;
-  ms: number;
-  error?: string;
-  skippedReason?: string;
+  count: number;
+  note?: string;
 }
 
-export interface SyncRun {
+export interface NicheScan {
+  niche: string;
+  scannedAt: string;
+  topics: Topic[];
+  posts: Post[];
+  communities: CommunityVolume[];
+  /** Total posts across the niche's communities, per day, oldest first. */
+  dailyVolume: { date: string; IN: number; GLOBAL: number }[];
+  /** When community volume was last read — it changes daily, so it is reused between scans. */
+  volumeAt: string | null;
+  sources: SourceRun[];
+  model: string | null;
+  /** Why topics fell back to rules, when they did. */
+  aiNote?: string;
+}
+
+/** Things that are spiking across the whole internet, not tied to a niche. */
+export interface Signal {
   id: string;
-  startedAt: string;
-  finishedAt: string | null;
-  sourcesChecked: number;
-  sourcesFailed: number;
-  rawItems: number;
-  duplicatesRemoved: number;
-  newSignals: number;
-  aiRequests: number;
-  aiSkipped: boolean;
-  aiSkipReason?: string;
-  runs: SourceRun[];
-  mode: "live" | "mock";
+  source: SourceId;
+  title: string;
+  url: string;
+  region: RegionCode;
+  /** "200K+ searches", "1.2 lakh pageviews", "540 posts today". */
+  measure: string;
+  value: number;
+  niche: string | null;
+  context?: string;
 }
 
-export interface Snapshot {
-  generatedAt: string;
-  mode: "live" | "mock";
-  items: IntelligenceItem[];
-  brief: DailyBrief | null;
-  lastRun: SyncRun | null;
+export interface SignalsScan {
+  scannedAt: string;
+  signals: Signal[];
+  sources: SourceRun[];
 }
 
-export interface UsageStat {
-  day: string;
-  month: string;
-  requestsToday: number;
-  requestsThisMonth: number;
-  estimatedTokensToday: number;
-  dailyCap: number;
-  monthlyCap: number;
-  blocked: boolean;
-  blockReason?: string;
+/* ───────────── Explore ───────────── */
+
+export interface ExploreSourceResult {
+  source: SourceId;
+  ok: boolean;
+  note?: string;
+  /** Total matching conversations in the window, as the source counts them. */
+  total: number | null;
+  /** True when `total` is a floor (the source caps its result list). */
+  capped?: boolean;
+  window: string;
+}
+
+export interface ExploreResult {
+  query: string;
+  region: RegionFilter;
+  fetchedAt: string;
+  sources: ExploreSourceResult[];
+  /** Conversations per day by source, oldest first. */
+  daily: { date: string; reddit: number; hackernews: number; news: number; youtube: number }[];
+  /** Wikipedia pageviews per day, as an attention line. */
+  attention: { article: string; url: string; daily: { date: string; views: number }[] } | null;
+  posts: Post[];
+  communities: { name: string; posts: number; region: RegionCode }[];
+  regionSplit: { IN: number; GLOBAL: number };
+  totals: { conversations: number; comments: number; score: number; views: number };
+  links: { label: string; url: string }[];
+}
+
+export interface ExploreInsight {
+  summary: string;
+  threads: { title: string; detail: string }[];
+  sentiment: { label: Sentiment; detail: string };
+  questions: string[];
+  angles: ContentAngle[];
+  verdict: string;
+  model: string;
 }

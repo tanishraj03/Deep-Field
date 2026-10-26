@@ -84,9 +84,9 @@ export function daysAgo(iso: string | null): number {
 }
 
 export function relativeTime(iso: string | null): string {
-  if (!iso) return "date not disclosed";
+  if (!iso) return "time unknown";
   const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
-  if (!Number.isFinite(mins)) return "date not disclosed";
+  if (!Number.isFinite(mins)) return "time unknown";
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
   const hrs = Math.round(mins / 60);
@@ -174,4 +174,37 @@ export async function fetchWithTimeout(
   // release every queued request at once.
   hostQueue.set(host, mine.catch(() => undefined));
   return mine;
+}
+
+/** 1234 → "1.2K", 2_300_000 → "2.3M". */
+export function compact(n: number | undefined | null): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "–";
+  const a = Math.abs(n);
+  if (a >= 1e9) return `${(n / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace(/\.0$/, "")}B`;
+  if (a >= 1e6) return `${(n / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, "")}M`;
+  if (a >= 1e3) return `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, "")}K`;
+  return String(Math.round(n));
+}
+
+const STOP = new Set(("a an and are as at be been but by can could did do does for from had has have how i if in into is it its just " +
+  "me my no not of on or our out so than that the their them then there these they this to too up us was we were what when where " +
+  "which who why will with would you your about after again all also any am because before being both each few more most new now " +
+  "only other over same she he his her some such very get got one two like dont im ive cant wont people anyone someone something " +
+  "should help need any thoughts advice question vs best today week year years really much many still even make made going want").split(" "));
+
+/** Lowercased content words, for overlap matching. */
+export function terms(text: string): string[] {
+  return text.toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9ऀ-ॿ ]+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w));
+}
+
+export function jaccard(a: string[], b: string[]): number {
+  const A = new Set(a), B = new Set(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return inter / (A.size + B.size - inter);
 }

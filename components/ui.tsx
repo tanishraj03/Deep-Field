@@ -1,145 +1,218 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { ArrowDownRight, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
+import type { RegionFilter, SourceId } from "@/lib/types";
+import { cn, compact } from "@/lib/utils";
 
-export function Glass({
-  className, children, lit = true, ...rest
-}: React.HTMLAttributes<HTMLDivElement> & { lit?: boolean }) {
-  return (
-    <div className={cn("glass rounded-module", lit && "glass-lit", className)} {...rest}>
-      {children}
-    </div>
-  );
+export function Card({ className, children, hover, ...rest }: React.HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
+  return <div className={cn("card", hover && "card-hover", className)} {...rest}>{children}</div>;
 }
 
 export function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
   return <p className={cn("eyebrow", className)}>{children}</p>;
 }
 
-/**
- * SIGNATURE ELEMENT — the momentum capsule.
- *
- * Control Centre's brightness slider, borrowed as a data readout. The fill is
- * the score; the notch behind it is the threshold where the label changes.
- * Used for trend momentum and opportunity score so both read as one instrument.
- */
-export function Capsule({
-  value, tone = "accent", label, threshold, estimated = false,
-}: {
-  value: number;
-  tone?: "accent" | "ember";
-  label?: string;
-  threshold?: number;
-  estimated?: boolean;
-}) {
-  const pct = Math.max(0, Math.min(100, value));
-  const color = tone === "ember" ? "rgb(var(--ember))" : "rgb(var(--accent))";
-  return (
-    <div className="w-full">
-      <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <span className="readout text-[2.25rem] font-semibold leading-none tracking-tight">
-          {pct}
-          <span className="text-faint text-base font-normal"> / 100</span>
-        </span>
-        {label && (
-          <span
-            className="readout text-[0.7rem] font-semibold uppercase tracking-[0.12em]"
-            style={{ color }}
-          >
-            {label}
-          </span>
-        )}
-      </div>
-      <div
-        className="relative h-2.5 w-full overflow-hidden rounded-pill"
-        style={{ background: "rgb(var(--hair) / 0.09)" }}
-        role="meter"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={label ? `${label} ${pct} out of 100` : `${pct} out of 100`}
-      >
-        {typeof threshold === "number" && (
-          <span
-            className="absolute top-0 h-full w-px"
-            style={{ left: `${threshold}%`, background: "rgb(var(--hair) / 0.28)" }}
-            aria-hidden
-          />
-        )}
-        <motion.span
-          className="absolute inset-y-0 left-0 rounded-pill"
-          style={{ background: color }}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.9, ease: [0.32, 0.72, 0, 1] }}
-        />
-      </div>
-      {estimated && (
-        <p className="readout mt-1.5 text-[0.65rem] uppercase tracking-[0.1em] text-faint">
-          AI-estimated
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Provenance and claim-strength markers. Deliberately unglamorous. */
-export function Tag({
+export function Badge({
   children, tone = "neutral", className,
-}: {
-  children: React.ReactNode;
-  tone?: "neutral" | "accent" | "ember" | "outline";
-  className?: string;
-}) {
-  const tones: Record<string, string> = {
-    neutral: "bg-[rgb(var(--hair)/0.06)] text-muted",
-    accent: "text-[rgb(var(--accent))] bg-[rgb(var(--accent)/0.11)]",
-    ember: "text-[rgb(var(--ember))] bg-[rgb(var(--ember)/0.12)]",
-    outline: "text-faint border border-[rgb(var(--hair)/0.14)]",
+}: { children: React.ReactNode; tone?: "neutral" | "accent" | "ember" | "rise" | "fall" | "outline"; className?: string }) {
+  const tones = {
+    neutral: "bg-hair/[0.06] text-muted",
+    accent: "bg-accent/10 text-accent",
+    ember: "bg-ember/10 text-ember",
+    rise: "bg-rise/10 text-rise",
+    fall: "bg-fall/10 text-fall",
+    outline: "border border-hair/15 text-muted",
   };
   return (
-    <span
-      className={cn(
-        "readout inline-flex items-center gap-1 whitespace-nowrap rounded-pill px-2 py-[3px] text-[0.65rem] font-semibold uppercase tracking-[0.09em]",
-        tones[tone], className,
-      )}
-    >
+    <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-pill px-2 py-0.5 text-[0.6875rem] font-semibold", tones[tone], className)}>
       {children}
     </span>
   );
 }
 
-export function LiveDot({ ok = true }: { ok?: boolean }) {
+/** Segmented control. Used for region everywhere so it reads as one instrument. */
+export function Segmented<T extends string>({
+  value, onChange, options, layoutId, size = "md",
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: React.ReactNode }[];
+  layoutId: string;
+  size?: "sm" | "md";
+}) {
   return (
-    <span className="relative inline-flex h-1.5 w-1.5" aria-hidden>
-      <span
-        className="absolute inline-flex h-full w-full rounded-full opacity-60"
-        style={{ background: ok ? "rgb(var(--accent))" : "rgb(var(--ember))" }}
-      />
-      <span
-        className="relative inline-flex h-1.5 w-1.5 rounded-full"
-        style={{ background: ok ? "rgb(var(--accent))" : "rgb(var(--ember))" }}
-      />
+    <div className="inline-flex items-center rounded-pill bg-hair/[0.06] p-0.5" role="radiogroup">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "relative rounded-pill font-medium transition-colors",
+            size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-[0.8125rem]",
+            value === o.value ? "text-ink" : "text-muted hover:text-ink",
+          )}
+        >
+          {value === o.value && (
+            <motion.span
+              layoutId={layoutId}
+              className="absolute inset-0 rounded-pill bg-surface shadow-sm ring-1 ring-hair/10"
+              transition={{ type: "spring", stiffness: 500, damping: 38 }}
+            />
+          )}
+          <span className="relative flex items-center gap-1.5">{o.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const REGION_OPTIONS: { value: RegionFilter; label: React.ReactNode }[] = [
+  { value: "ALL", label: "Everywhere" },
+  { value: "IN", label: <><Flag region="IN" /> India</> },
+  { value: "GLOBAL", label: <><Flag region="GLOBAL" /> Global</> },
+];
+
+export function Flag({ region }: { region: "IN" | "GLOBAL" }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-2 w-2 rounded-full"
+      style={{ background: region === "IN" ? "rgb(var(--india))" : "rgb(var(--global))" }}
+    />
+  );
+}
+
+export function Button({
+  children, variant = "secondary", size = "md", loading, className, ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "ghost"; size?: "sm" | "md"; loading?: boolean;
+}) {
+  const variants = {
+    primary: "bg-ink text-canvas hover:opacity-90",
+    secondary: "bg-surface text-ink ring-1 ring-hair/10 hover:ring-hair/20",
+    ghost: "text-muted hover:text-ink hover:bg-hair/[0.05]",
+  };
+  return (
+    <button
+      className={cn(
+        "press inline-flex items-center justify-center gap-1.5 rounded-pill font-medium transition disabled:opacity-50 disabled:pointer-events-none",
+        size === "sm" ? "h-8 px-3 text-xs" : "h-9 px-4 text-[0.8125rem]",
+        variants[variant], className,
+      )}
+      disabled={loading || rest.disabled}
+      {...rest}
+    >
+      {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {children}
+    </button>
+  );
+}
+
+export function Stat({ label, value, sub, className }: { label: string; value: React.ReactNode; sub?: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("min-w-0", className)}>
+      <p className="eyebrow">{label}</p>
+      <p className="num mt-1 text-[1.625rem] font-semibold leading-none tracking-tight">{value}</p>
+      {sub && <p className="mt-1.5 text-xs text-muted">{sub}</p>}
+    </div>
+  );
+}
+
+/** Heat, 0–100, as a number plus a short bar. Ember marks the hot end only. */
+export function Heat({ value, size = "md" }: { value: number; size?: "sm" | "md" | "lg" }) {
+  const hot = value >= 70;
+  const dims = { sm: "text-sm", md: "text-base", lg: "text-[2rem]" }[size];
+  return (
+    <div className="flex flex-col items-end" aria-label={`Heat ${value} out of 100`}>
+      <span className={cn("num font-semibold leading-none", dims, hot ? "text-ember" : "text-ink")}>{value}</span>
+      <span className={cn("mt-1 overflow-hidden rounded-pill bg-hair/10", size === "lg" ? "h-1.5 w-20" : "h-1 w-8")}>
+        <span
+          className="block h-full rounded-pill"
+          style={{ width: `${value}%`, background: hot ? "rgb(var(--ember))" : "rgb(var(--ink) / 0.55)" }}
+        />
+      </span>
+    </div>
+  );
+}
+
+export function Delta({ isNew, delta }: { isNew: boolean; delta: number | null }) {
+  if (isNew) return <Badge tone="accent"><Sparkles className="h-3 w-3" />New</Badge>;
+  if (delta === null || Math.abs(delta) < 3) return null;
+  return delta > 0
+    ? <Badge tone="rise"><ArrowUpRight className="h-3 w-3" />+{delta}</Badge>
+    : <Badge tone="fall"><ArrowDownRight className="h-3 w-3" />{delta}</Badge>;
+}
+
+/** India vs Global share of a conversation. Two series, so both are labelled. */
+export function RegionSplit({ IN, GLOBAL, compactLabel }: { IN: number; GLOBAL: number; compactLabel?: boolean }) {
+  const total = IN + GLOBAL;
+  if (!total) return null;
+  const pIN = Math.round((IN / total) * 100);
+  return (
+    <div className="min-w-0">
+      <div className="flex h-1.5 gap-[2px] overflow-hidden rounded-pill">
+        {IN > 0 && <span className="h-full rounded-pill" style={{ width: `${pIN}%`, background: "rgb(var(--india))" }} />}
+        {GLOBAL > 0 && <span className="h-full flex-1 rounded-pill" style={{ background: "rgb(var(--global))" }} />}
+      </div>
+      <div className="mt-1 flex justify-between text-[0.6875rem] text-muted">
+        <span className="flex items-center gap-1"><Flag region="IN" />{compactLabel ? `${pIN}%` : `India ${pIN}%`}</span>
+        <span className="flex items-center gap-1">{compactLabel ? `${100 - pIN}%` : `Global ${100 - pIN}%`}<Flag region="GLOBAL" /></span>
+      </div>
+    </div>
+  );
+}
+
+export const SOURCE_META: Record<SourceId, { label: string; short: string; color: string }> = {
+  reddit: { label: "Reddit", short: "Reddit", color: "#FF4500" },
+  hackernews: { label: "Hacker News", short: "HN", color: "#FF6600" },
+  youtube: { label: "YouTube", short: "YouTube", color: "#FF0033" },
+  news: { label: "News", short: "News", color: "#8A8D96" },
+  wikipedia: { label: "Wikipedia", short: "Wiki", color: "#8A8D96" },
+  "google-trends": { label: "Google Trends", short: "Trends", color: "#4285F4" },
+  bluesky: { label: "Bluesky", short: "Bluesky", color: "#1185FE" },
+  mastodon: { label: "Mastodon", short: "Mastodon", color: "#6364FF" },
+};
+
+/** Source names are always written out; the dot is decoration, never the only cue. */
+export function SourceTag({ source, count }: { source: SourceId; count?: number }) {
+  const m = SOURCE_META[source];
+  return (
+    <span className="inline-flex items-center gap-1 text-[0.6875rem] text-muted">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.color }} aria-hidden />
+      {m.short}{count !== undefined && <span className="num text-faint">{count}</span>}
     </span>
   );
 }
 
-export function Empty({ title, action }: { title: string; action: string }) {
+export function Metric({ icon: Icon, value, label }: { icon: React.ElementType; value: number | undefined; label: string }) {
+  if (!value) return null;
   return (
-    <Glass className="px-6 py-14 text-center">
-      <p className="text-[0.95rem] font-medium">{title}</p>
-      <p className="mt-1.5 text-sm text-muted">{action}</p>
-    </Glass>
+    <span className="inline-flex items-center gap-1 text-xs text-muted" title={`${value.toLocaleString("en-US")} ${label}`}>
+      <Icon className="h-3.5 w-3.5 text-faint" strokeWidth={2} />
+      <span className="num font-medium text-ink/80">{compact(value)}</span>
+      <span className="sr-only">{label}</span>
+    </span>
   );
 }
 
-export const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.045, delayChildren: 0.04 } },
-};
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("shimmer rounded-xl", className)} />;
+}
 
-export const riseIn = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] as const } },
-};
+export function EmptyState({ icon: Icon, title, body, action }: {
+  icon: React.ElementType; title: string; body: React.ReactNode; action?: React.ReactNode;
+}) {
+  return (
+    <Card className="flex flex-col items-center px-6 py-16 text-center">
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-hair/[0.06]">
+        <Icon className="h-5 w-5 text-muted" />
+      </span>
+      <p className="mt-4 text-[0.95rem] font-semibold">{title}</p>
+      <div className="mt-1.5 max-w-md text-sm text-muted">{body}</div>
+      {action && <div className="mt-5">{action}</div>}
+    </Card>
+  );
+}
