@@ -21,7 +21,7 @@ export const summaryKey = (niche: string) => `summary:${niche}`;
 export const SIGNALS_KEY = "signals";
 
 /** Bump when scoring changes, so stored summaries are re-scored from their full scans. */
-const SCORE_VERSION = 4;
+const SCORE_VERSION = 5;
 
 /**
  * A scan cut down to what the Pulse board shows, no posts, angles or

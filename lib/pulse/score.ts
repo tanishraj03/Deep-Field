@@ -149,7 +149,12 @@ export function rescore(scan: NicheScan): NicheScan {
       },
     };
   });
-  return { ...scan, topics: topics.sort((a, b) => b.heat - a.heat) };
+  return {
+    ...scan,
+    topics: topics.sort((a, b) => b.heat - a.heat),
+    sources: scan.sources.map((s) => (s.note ? { ...s, note: noEmDash(s.note) } : s)),
+    aiNote: scan.aiNote && noEmDash(scan.aiNote),
+  };
 }
 
 export function buildTopics(
