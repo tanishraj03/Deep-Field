@@ -63,11 +63,28 @@ export async function topGlobal(limit = 15): Promise<Signal[]> {
 }
 
 /** Daily views of the article that best matches a query, last 30 days. */
-export async function attention(query: string) {
-  const s = await getJson<[string, string[], string[], string[]]>(
-    `https://en.wikipedia.org/w/api.php?action=opensearch&format=json&limit=1&namespace=0&search=${encodeURIComponent(query)}`,
+/**
+ * The article that is actually about the query, or none. Wikipedia's
+ * suggestions match prefixes ("diwali sale" → "Diwali sweets"), so a title
+ * must contain every word of the query; the full-text search is the second
+ * try. A wrong article's views are worse than no attention line at all.
+ */
+async function articleFor(query: string): Promise<string | null> {
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+  const fits = (title: string) => { const t = title.toLowerCase(); return words.every((w) => t.includes(w)); };
+  const suggest = await getJson<[string, string[]]>(
+    `https://en.wikipedia.org/w/api.php?action=opensearch&format=json&limit=5&namespace=0&search=${encodeURIComponent(query)}`,
     { gapMs: 200 });
-  const title = s[1]?.[0];
+  const suggested = (suggest[1] ?? []).find(fits);
+  if (suggested) return suggested;
+  const search = await getJson<{ query?: { search?: { title: string }[] } }>(
+    `https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=5&srsearch=${encodeURIComponent(query)}`,
+    { gapMs: 200 });
+  return (search.query?.search ?? []).map((x) => x.title).find(fits) ?? null;
+}
+
+export async function attention(query: string) {
+  const title = await articleFor(query);
   if (!title) return null;
   const article = encodeURIComponent(title.replace(/ /g, "_"));
   const r = await getJson<{ items?: { timestamp: string; views: number }[] }>(

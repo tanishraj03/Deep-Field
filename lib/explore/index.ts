@@ -2,7 +2,7 @@ import { completeJSON } from "@/lib/ai/client";
 import { backgroundModels, MODEL_BY_ID } from "@/lib/ai/models";
 import { INSIGHT_SYSTEM, insightUser } from "@/lib/ai/prompts";
 import { config } from "@/lib/config";
-import { guessNiche, NICHE_BY_ID } from "@/lib/niches";
+import { guessNiche, NICHE_BY_ID, NICHES } from "@/lib/niches";
 import { callOf, engagementOf, viralityOf } from "@/lib/pulse/score";
 import * as gnews from "@/lib/sources/googlenews";
 import * as hn from "@/lib/sources/hackernews";
@@ -53,11 +53,16 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
   const india = region === "IN";
   const niche = NICHE_BY_ID.get(guessNiche(query) ?? "");
   const indiaSubs = [...new Set([...(niche?.subreddits.IN ?? []), ...INDIA_CORE])].slice(0, 12);
-  const globalSubs = [...new Set([...(niche?.subreddits.GLOBAL ?? []), ...GLOBAL_CORE])];
+  // When Reddit's own search is rate limited, these are read instead. A topic
+  // often fits no single niche ("met gala"), so take the busiest communities
+  // from every niche as well as the guessed one's.
+  const spread = (r: "IN" | "GLOBAL", per: number) => NICHES.flatMap((n) => n.core[r].slice(0, per));
+  const indiaFallback = [...new Set([...(niche?.core.IN ?? []), ...INDIA_CORE, ...spread("IN", 2)])].slice(0, 30);
+  const globalFallback = [...new Set([...(niche?.core.GLOBAL ?? []), ...GLOBAL_CORE, ...spread("GLOBAL", 1)])].slice(0, 30);
 
   const [redditR, indiaR, hnR, ytR, newsR, wikiR, bskyR, gnewsR, lemmyR, igR, hnMentionsR] = await Promise.all([
-    region === "IN" ? Promise.resolve(null) : settle(() => reddit.searchReddit(query, { fallbackSubs: globalSubs })),
-    region === "GLOBAL" ? Promise.resolve(null) : settle(() => reddit.searchReddit(query, { within: indiaSubs, fallbackSubs: indiaSubs })),
+    region === "IN" ? Promise.resolve(null) : settle(() => reddit.searchReddit(query, { fallbackSubs: globalFallback })),
+    region === "GLOBAL" ? Promise.resolve(null) : settle(() => reddit.searchReddit(query, { within: indiaSubs, fallbackSubs: indiaFallback })),
     india ? Promise.resolve(null) : settle(() => hn.search(query)),
     yt.hasYouTube() ? settle(() => yt.search(query, india)) : Promise.resolve(null),
     // GDELT allows one request every five seconds, so these two run in series.

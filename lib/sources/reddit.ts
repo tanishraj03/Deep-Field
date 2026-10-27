@@ -248,7 +248,7 @@ export async function searchReddit(
   // accepts r/a+b+c as a single multi-community path.
   const scope = opts.within?.length ? `/r/${opts.within.join("+")}` : "";
   const restrict = scope ? "&restrict_sr=on" : "";
-  const fallbackSubs = opts.within?.length ? opts.within : opts.fallbackSubs;
+  const fallbackSubs = opts.fallbackSubs;
 
   if (hasRedditApi()) {
     const hits = await oauthListing(`${scope}/search?q=${q}${restrict}&sort=relevance&t=week&limit=100&raw_json=1`);
@@ -270,17 +270,28 @@ export async function searchReddit(
       };
     });
     return { posts, via: "rss" };
-  } catch (e) {
-    // Reddit refused the search. Fall back to the archive, which can only
-    // search inside named communities, so this is a narrower read, and says so.
-    // The archive's keyword search times out beyond about five days.
-    const subs = fallbackSubs.slice(0, 8);
-    const results = await pool(subs, 3, (s) =>
-      arctic.searchPosts({ subreddit: s, query, after: "5d", limit: 40 }).catch(() => []));
+  } catch {
+    // Reddit refused the search. The archive cannot search all of Reddit, and
+    // its keyword search inside a community mostly answers "slow down", so
+    // read each candidate community's week instead (newest posts, plus older
+    // ones with settled counts) and keep the posts that name every search
+    // word. Reliable and paced by the archive limiter; narrower, and says so.
+    const subs = fallbackSubs.slice(0, 30);
+    const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const names = (p: Post) => { const t = `${p.title} ${p.snippet ?? ""}`.toLowerCase(); return words.every((w) => t.includes(w)); };
+    const results = await pool(subs, 8, async (s) => {
+      const [fresh, mature] = await Promise.all([
+        arctic.searchPosts({ subreddit: s, after: "7d", limit: 100 }).catch(() => [] as arctic.ArcticPost[]),
+        arctic.searchPosts({ subreddit: s, after: "7d", before: "36h", limit: 100 }).catch(() => [] as arctic.ArcticPost[]),
+      ]);
+      return [...fresh, ...mature];
+    });
+    const seen = new Set<string>();
+    const posts = results.flat().map((p) => fromArctic(p)).filter((p) => names(p) && !seen.has(p.id) && seen.add(p.id));
     return {
-      posts: results.flat().map((p) => fromArctic(p)),
+      posts,
       via: "archive",
-      note: `Reddit's search was rate limited, so ${subs.length} related communities were searched over 5 days instead.`,
+      note: `Reddit's search was rate limited, so the past week of ${subs.length} related communities was read and matched instead.`,
     };
   }
 }
