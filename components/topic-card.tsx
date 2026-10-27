@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ArrowBigUp, Eye, MessageSquare, Users } from "lucide-react";
 import { nicheLabel } from "@/lib/niches";
 import type { RegionFilter, SourceId, Topic } from "@/lib/types";
-import { topicIn } from "@/lib/view";
+import { compact } from "@/lib/utils";
+import { mentionsOf, topicIn } from "@/lib/view";
 import { Badge, Card, Delta, Heat, Metric, RegionSplit, SourceTag, VerdictBadge, ViralityChip } from "./ui";
 
 const SENTIMENT: Record<Topic["sentiment"], { label: string; tone: "rise" | "fall" | "neutral" | "outline" }> = {
@@ -24,6 +25,7 @@ export function topicHref(t: Topic) {
 
 export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; region: RegionFilter; showNiche?: boolean; rank?: number }) {
   const { metrics, heat, virality } = topicIn(topic, region);
+  const mentions = mentionsOf(topic, region);
   return (
     <Link href={topicHref(topic)} className="group block h-full">
       <Card hover className="flex h-full flex-col p-4">
@@ -47,6 +49,9 @@ export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; re
         {topic.summary && <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-muted">{topic.summary}</p>}
         <div className="mt-auto pt-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-3">
+            <span className="text-xs text-muted" title={`${mentions.threads.toLocaleString("en-US")} posts and comments in the threads${mentions.bluesky ? ` · ${mentions.bluesky.toLocaleString("en-US")}${mentions.capped ? "+" : ""} Bluesky posts` : ""}${mentions.hackernews ? ` · ${mentions.hackernews.toLocaleString("en-US")} on Hacker News` : ""}`}>
+              <span className="num font-semibold text-ink">{compact(mentions.total)}{mentions.capped ? "+" : ""}</span> mentions
+            </span>
             <ViralityChip value={virality} perHour={metrics.perHour} />
             <Metric icon={MessageSquare} value={metrics.comments} label="comments" />
             <Metric icon={ArrowBigUp} value={metrics.score} label="upvotes" />

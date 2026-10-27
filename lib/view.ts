@@ -47,3 +47,17 @@ export function commentIndex(d: Discussion): Map<string, Comment> {
   }
   return m;
 }
+
+/**
+ * Everyone we can count talking about a topic: every post and comment in its
+ * threads, plus matching posts on Bluesky and stories and comments on Hacker
+ * News. Web counts are global, so the India filter leaves them out.
+ */
+export function mentionsOf(t: Topic, region: RegionFilter): { total: number; threads: number; bluesky: number; hackernews: number; capped: boolean } {
+  const m = topicIn(t, region).metrics;
+  const threads = m.mentions ?? m.posts + m.comments;
+  const web = region === "IN" ? null : t.web;
+  const bluesky = web?.bluesky ?? 0;
+  const hackernews = web?.hackernews ?? 0;
+  return { total: threads + bluesky + hackernews, threads, bluesky, hackernews, capped: Boolean(web?.blueskyCapped) };
+}

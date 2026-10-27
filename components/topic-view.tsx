@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { NICHE_BY_ID } from "@/lib/niches";
 import type { ContentAngle, NicheScan, Topic } from "@/lib/types";
 import { compact, relativeTime, shortQuery } from "@/lib/utils";
-import { postsFor, topicIn } from "@/lib/view";
+import { mentionsOf, postsFor, topicIn } from "@/lib/view";
 import { RankBars } from "./charts";
 import { PostRow } from "./post-row";
 import { useRegion } from "./region";
@@ -45,6 +45,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
   const best = bestCommentByPost(discussion.data);
   const n = NICHE_BY_ID.get(topic.niche);
   const { metrics, heat, virality } = topicIn(topic, region);
+  const mentions = mentionsOf(topic, region);
   const posts = postsFor(topic, scan, region);
   const communities = new Map<string, { label: string; value: number; region: "IN" | "GLOBAL" }>();
   for (const p of postsFor(topic, scan, "ALL")) {
@@ -103,7 +104,9 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-5 border-t pt-5 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-6 grid grid-cols-2 gap-5 border-t pt-5 sm:grid-cols-4 lg:grid-cols-7">
+          <Stat label="Mentions" value={`${compact(mentions.total)}${mentions.capped ? "+" : ""}`}
+            sub={[mentions.bluesky ? `${compact(mentions.bluesky)}${mentions.capped ? "+" : ""} on Bluesky` : null, mentions.hackernews ? `${compact(mentions.hackernews)} on HN` : null].filter(Boolean).join(" · ") || "posts + comments"} />
           <Stat label="Threads" value={metrics.posts} />
           <Stat label="Comments" value={compact(metrics.comments)} />
           <Stat label="Upvotes" value={compact(metrics.score)} />

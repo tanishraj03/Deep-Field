@@ -13,12 +13,14 @@ export interface Draft {
   questions: string[];
   angles: ContentAngle[];
   postIds: string[];
+  /** How people would name it in a post, for counting mentions elsewhere. */
+  query?: string;
 }
 
 const SENTIMENTS = new Set(["positive", "negative", "mixed", "neutral"]);
 
 interface ModelTopic {
-  title?: string; summary?: string; whyNow?: string; sentiment?: string;
+  title?: string; summary?: string; whyNow?: string; sentiment?: string; query?: string;
   questions?: unknown; angles?: unknown; posts?: unknown;
 }
 
@@ -47,6 +49,7 @@ export async function clusterWithAI(modelId: string, nicheLabel: string, posts: 
         .filter((a) => a.hook)
         .slice(0, 3),
       postIds: idx.map((i) => posts[i].id),
+      query: t.query ? String(t.query).trim().slice(0, 60) : undefined,
     });
   }
   return { drafts, model };

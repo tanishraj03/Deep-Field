@@ -24,6 +24,7 @@ export function metricsFor(posts: Post[], now = Date.now()): TopicMetrics {
     score: posts.reduce((a, p) => a + (p.source === "youtube" ? 0 : p.score ?? 0), 0),
     views: posts.reduce((a, p) => a + (p.views ?? 0), 0),
     engagement: Math.round(engagement),
+    mentions: posts.length + posts.reduce((a, p) => a + (p.comments ?? 0), 0),
     perHour: Math.round(engagement / hours),
     communities: new Set(posts.map((p) => p.community)).size,
     postsIN: posts.filter((p) => p.region === "IN").length,
@@ -168,6 +169,7 @@ export function buildTopics(
       questions: d.questions,
       angles: d.angles,
       postIds: d.postIds,
+      query: d.query,
       metrics,
       heat: heatOf(metrics, posts),
       byRegion: {

@@ -7,7 +7,7 @@ import { ArrowRight, ChevronDown, ExternalLink, Radar, RefreshCw, TriangleAlert 
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import type { NicheScan, RegionFilter, Signal, SignalsScan, SourceId } from "@/lib/types";
 import { compact, relativeTime } from "@/lib/utils";
-import { rankTopics, topicIn, visibleTopics, volumeRows, weeklyPosts, type RankBy } from "@/lib/view";
+import { mentionsOf, rankTopics, topicIn, visibleTopics, volumeRows, weeklyPosts, type RankBy } from "@/lib/view";
 import { DailyBars, RankBars, Sparkline } from "./charts";
 import { useRegion } from "./region";
 import { ScanAllButton, ScanProgressPanel, useScanRunner } from "./scan-runner";
@@ -120,15 +120,23 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
   const views = topics.map((t) => topicIn(t, region));
   const posts = views.reduce((a, v) => a + v.metrics.posts, 0);
   const comments = views.reduce((a, v) => a + v.metrics.comments, 0);
+  const reach = views.reduce((a, v) => a + v.metrics.views, 0);
+  const mentions = topics.map((t) => mentionsOf(t, region));
+  const totalMentions = mentions.reduce((a, m) => a + m.total, 0);
+  const webMentions = mentions.reduce((a, m) => a + m.bluesky + m.hackernews, 0);
   const weekly = scans.reduce((a, s) => a + weeklyPosts(s, region), 0);
   const rising = topics.filter((t) => (t.heatDelta ?? 0) > 0 || t.isNew).length;
   const makeNow = topics.filter((t) => t.verdict?.call === "make").length;
   const hottest = [...topics].sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat)[0];
 
   return (
-    <div className="grid grid-cols-2 gap-y-5 border-y py-4 md:grid-cols-4 md:divide-x md:divide-hair/10 [&>*]:md:px-5 [&>*:first-child]:md:pl-0">
-      <Stat label="Conversations" value={compact(topics.length)} sub={<><span className="num">{compact(posts)}</span> threads · <span className="num text-rise">{makeNow}</span> worth making now</>} />
-      <Stat label="Comments measured" value={compact(comments)} sub="as reported by each platform" />
+    <div className="grid grid-cols-2 gap-y-5 border-y py-4 md:grid-cols-5 md:divide-x md:divide-hair/10 [&>*]:md:px-5 [&>*:first-child]:md:pl-0">
+      <Stat label="Mentions" value={compact(totalMentions)}
+        sub={<span title="Every post and comment in the grouped threads, plus matching posts on Bluesky and stories and comments on Hacker News this week. Platform counts only.">
+          <span className="num">{compact(posts)}</span> threads · <span className="num">{compact(comments)}</span> comments{webMentions ? <> · <span className="num">{compact(webMentions)}</span> web posts</> : null}
+        </span>} />
+      <Stat label="Reach" value={compact(reach)} sub="video views on these topics" />
+      <Stat label="Topics" value={compact(topics.length)} sub={<><span className="num text-rise">{makeNow}</span> worth making now</>} />
       <Stat label="Posts this week" value={compact(weekly)} sub={`across ${scans.reduce((a, s) => a + s.communities.filter((c) => region === "ALL" || c.region === region).length, 0)} tracked communities`} />
       <Stat
         label="Rising or new"
@@ -245,7 +253,7 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
                   <div className="min-w-0">
                     <p className="font-semibold tracking-tight group-hover:text-accent">{n.label}</p>
                     <p className="num mt-0.5 text-xs text-muted">
-                      {s.dailyVolume.length ? `${compact(weeklyPosts(s, region))} posts this week` : "volume unavailable"} · {topics.length} conversations
+                      {s.dailyVolume.length ? `${compact(weeklyPosts(s, region))} posts this week` : "volume unavailable"} · {topics.length} topics
                     </p>
                   </div>
                   <Sparkline values={series} labels={rows.map((r) => r.date)} className="w-24 shrink-0" height={30} color="rgb(var(--ink) / 0.55)" />
@@ -254,7 +262,7 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
                   {topics.slice(0, 3).map((t) => <TopicRow key={t.id} topic={t} region={region} />)}
                 </div>
                 <button onClick={() => setNiche(s.niche)} className="mt-2 flex items-center gap-1 self-start text-xs font-medium text-muted hover:text-accent">
-                  All {topics.length} conversations <ArrowRight className="h-3 w-3" />
+                  All {topics.length} topics <ArrowRight className="h-3 w-3" />
                 </button>
               </Card>
             );

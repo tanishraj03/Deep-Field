@@ -182,7 +182,7 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
           <div>
             <p className="eyebrow">This week · {where}</p>
             <h2 className="mt-2 text-[1.5rem] font-semibold leading-tight tracking-tight">
-              <span className="num">{result.totals.conversations.toLocaleString("en-US")}</span> conversations about “{result.query}”
+              <span className="num">{(result.totals.mentions ?? result.totals.conversations).toLocaleString("en-US")}</span> mentions of “{result.query}”
             </h2>
             {result.opportunity && (
               <div className="mt-2 flex flex-wrap items-center gap-3" title={result.opportunity.signals.join(" · ")}>
@@ -193,7 +193,7 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
               </div>
             )}
             <p className="mt-1.5 text-sm text-muted">
-              <span className="num">{compact(result.totals.comments)}</span> comments · <span className="num">{compact(result.totals.score)}</span> upvotes
+              <span className="num">{compact(result.totals.conversations)}</span> posts, videos and articles · <span className="num">{compact(result.totals.comments)}</span> comments · <span className="num">{compact(result.totals.score)}</span> upvotes
               {result.totals.views > 0 && <> · <span className="num">{compact(result.totals.views)}</span> video views</>}
               {" "}· searched {relativeTime(result.fetchedAt)}
             </p>

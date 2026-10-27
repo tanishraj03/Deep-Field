@@ -19,6 +19,7 @@ export const CLUSTER_SYSTEM = `You are the research analyst behind a content tea
 Return JSON only, shaped exactly:
 {"topics":[{
   "title": "specific, max 8 words — names the actual thing (a product, person, event, claim, habit), never a category",
+  "query": "2-3 words people literally type when they mention this in a post (e.g. \"iphone duo\", \"zepto layoffs\", \"sanju samson\") — used to count mentions across the web, so no generic words",
   "summary": "2 sentences: what people are actually saying, the tension or debate",
   "whyNow": "1 sentence: why this is being discussed right now",
   "sentiment": "positive" | "negative" | "mixed" | "neutral",
@@ -28,7 +29,7 @@ Return JSON only, shaped exactly:
 }]}
 
 Rules:
-- 8 to 14 topics, strongest first, judged by reaction (comments, upvotes, views) more than by how many posts there are. A topic needs at least 2 posts, unless a single post drew far more discussion than the rest.
+- 10 to 16 topics, strongest first, judged by reaction (comments, upvotes, views) more than by how many posts there are. A topic needs at least 2 posts, unless a single post drew far more discussion than the rest.
 - Every index must come from the list. A post belongs to at most one topic.
 - Skip weekly/megathreads, moderator notices, self-promotion and individual "help me" posts that are not part of a wider conversation — unless many people are asking the same thing, which IS a conversation ("Everyone is asking whether X…").
 - Prefer conversations with real engagement or that appear across several communities. Include India and Global conversations when both are present.

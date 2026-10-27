@@ -19,10 +19,33 @@ import { get, SourceError, sleep } from "./http";
  */
 
 const BASE = "https://arctic-shift.photon-reddit.com/api";
-// Parallelism is bounded by the caller (a pool of 3), not a per-host queue:
-// a queue serialised every request and pushed a niche scan past the
-// serverless time limit.
-const GAP_MS = 0;
+
+/**
+ * Every archive request goes through one limiter: at most 4 in flight and a
+ * request started no more often than every 180ms (~5 a second at peak). A
+ * niche now reads ~100 communities, so callers may run wide pools; this is
+ * what keeps the archive's "few requests a second" request honoured. After a
+ * 429 the whole limiter pauses until the archive's reset time.
+ */
+const MAX_IN_FLIGHT = 4;
+const MIN_GAP_MS = 180;
+let inFlight = 0;
+let nextStart = 0;
+let pausedUntil = 0;
+const waiting: (() => void)[] = [];
+
+async function acquire() {
+  while (inFlight >= MAX_IN_FLIGHT) await new Promise<void>((r) => waiting.push(r));
+  inFlight++;
+  const now = Date.now();
+  const at = Math.max(now, nextStart, pausedUntil);
+  nextStart = at + MIN_GAP_MS;
+  if (at > now) await sleep(at - now);
+}
+function release() {
+  inFlight--;
+  waiting.shift()?.();
+}
 
 /** How long after posting the archive's counts can be trusted. */
 export const MATURE_AFTER_MS = 36 * 60 * 60 * 1000;
@@ -45,10 +68,14 @@ async function call<T>(path: string, params: Record<string, string | number | un
   const url = `${BASE}${path}?${qs}`;
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await get(url, { gapMs: GAP_MS, timeoutMs: config.http.timeoutMs + 8000 });
+    await acquire();
+    let res: Response;
+    try { res = await get(url, { timeoutMs: config.http.timeoutMs + 8000 }); }
+    finally { release(); }
     if (res.status === 429) {
       const reset = Number(res.headers.get("x-ratelimit-reset") ?? 5);
-      if (attempt === 0 && reset <= 15) { await sleep(reset * 1000 + 200); continue; }
+      pausedUntil = Math.max(pausedUntil, Date.now() + reset * 1000 + 200);
+      if (attempt === 0 && reset <= 15) continue;
       throw new SourceError("Reddit archive is rate limiting — try again in a minute", 429);
     }
     const json = (await res.json().catch(() => ({}))) as { data?: T; error?: string };

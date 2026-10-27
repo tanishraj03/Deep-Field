@@ -4,7 +4,7 @@ import { nicheLabel } from "@/lib/niches";
 import { loadScan } from "@/lib/pulse/scan";
 import type { Discussion, Post, RegionFilter } from "@/lib/types";
 import { compact, relativeTime } from "@/lib/utils";
-import { commentIndex, postsFor } from "@/lib/view";
+import { commentIndex, mentionsOf, postsFor } from "@/lib/view";
 
 /**
  * Everything DeepField knows about a topic or search, as one Markdown
@@ -64,6 +64,7 @@ async function topicSection(niche: string, topicId: string): Promise<string> {
     `**Verdict: ${VERDICT[t.verdict.call]} (${t.verdict.score}/100).** ${t.verdict.reasons.join(". ")}.`,
     "",
     `- Heat ${t.heat}/100 · Virality ${t.virality}/100 (~${compact(m.perHour)} reactions an hour)${t.heatDelta !== null ? ` · heat ${t.heatDelta >= 0 ? "+" : ""}${t.heatDelta} since last scan` : t.isNew ? " · new this scan" : ""}`,
+    (() => { const x = mentionsOf(t, "ALL"); return `- ${x.total.toLocaleString("en-US")}${x.capped ? "+" : ""} mentions: ${x.threads.toLocaleString("en-US")} posts and comments in the threads${x.bluesky ? `, ${x.bluesky.toLocaleString("en-US")} Bluesky posts` : ""}${x.hackernews ? `, ${x.hackernews} Hacker News stories and comments` : ""} (last 7 days)`; })(),
     `- ${m.posts} threads across ${m.communities} communities (${m.postsIN} India / ${m.postsGLOBAL} global), ${m.last24h} in the last 24h`,
     `- ${compact(m.comments)} comments · ${compact(m.score)} upvotes/likes${m.views ? ` · ${compact(m.views)} video views` : ""}`,
     `- Sentiment: ${t.sentiment}`,
@@ -93,7 +94,7 @@ async function exploreSection(query: string, region: RegionFilter): Promise<stri
     d?.gap ? `- Gap: ${d.gap}` : "",
     o ? `- Signals: ${o.signals.join("; ")}` : "",
     "",
-    `- ${r.totals.conversations.toLocaleString("en-US")} conversations · ${compact(r.totals.comments)} comments · ${compact(r.totals.score)} upvotes/likes${r.totals.views ? ` · ${compact(r.totals.views)} video views` : ""}`,
+    `- ${(r.totals.mentions ?? r.totals.conversations).toLocaleString("en-US")} mentions · ${r.totals.conversations.toLocaleString("en-US")} posts, videos and articles · ${compact(r.totals.comments)} comments · ${compact(r.totals.score)} upvotes/likes${r.totals.views ? ` · ${compact(r.totals.views)} video views` : ""}`,
     `- India vs global threads: ${r.regionSplit.IN} / ${r.regionSplit.GLOBAL}`,
     `- By source: ${r.sources.map((s) => `${s.source} ${s.ok ? `${s.total ?? "?"}${s.capped ? "+" : ""}` : "unavailable"}`).join(", ")}`,
     `- Top communities: ${r.communities.slice(0, 10).map((c) => `${c.name} (${c.posts})`).join(", ") || "none"}`,

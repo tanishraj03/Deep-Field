@@ -1,12 +1,14 @@
 import { Check, KeyRound, Minus, X } from "lucide-react";
 import { ScanAllButton } from "@/components/scan-runner";
+import { ScheduleCard } from "@/components/schedule-card";
 import { Badge, Card, Eyebrow } from "@/components/ui";
 import { backgroundModel, MODELS, PROVIDERS, hasKey } from "@/lib/ai/models";
 import { config } from "@/lib/config";
 import { NICHES } from "@/lib/niches";
-import { loadPulse } from "@/lib/pulse/scan";
+import { loadSummaries } from "@/lib/pulse/scan";
 import { hasInstagram } from "@/lib/sources/instagram";
 import { hasRedditApi } from "@/lib/sources/reddit";
+import { getSchedule, nextRun } from "@/lib/schedule";
 import { store } from "@/lib/store";
 import type { SourceRun } from "@/lib/types";
 import { relativeTime } from "@/lib/utils";
@@ -36,7 +38,7 @@ function health(runs: SourceRun[]) {
 }
 
 export default async function SettingsPage() {
-  const [pulse, storage] = await Promise.all([loadPulse(), store.status()]);
+  const [pulse, storage, schedule] = await Promise.all([loadSummaries(), store.status(), getSchedule()]);
   const runs = [...pulse.scans.flatMap((s) => s.sources), ...(pulse.signals?.sources ?? [])];
   const bg = backgroundModel();
   const byNiche = new Map(pulse.scans.map((s) => [s.niche, s]));
@@ -50,6 +52,11 @@ export default async function SettingsPage() {
         </div>
         <ScanAllButton />
       </div>
+
+      <section>
+        <Eyebrow className="mb-3">Schedule</Eyebrow>
+        <ScheduleCard initial={schedule} initialNext={nextRun(schedule)} />
+      </section>
 
       <section>
         <Eyebrow className="mb-3">Data</Eyebrow>

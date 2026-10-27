@@ -41,7 +41,7 @@ export function useScanRunner() {
         const res = await fetch(job.url, { method: "POST" });
         const json = await res.json();
         entry = json.ok
-          ? { label: job.label, ok: true, detail: json.skipped ? "already fresh" : json.topics !== undefined ? `${json.topics} conversations` : `${json.signals} signals` }
+          ? { label: job.label, ok: true, detail: json.skipped ? "already fresh" : json.topics !== undefined ? `${json.topics} topics` : `${json.signals} signals` }
           : { label: job.label, ok: false, detail: json.error ?? `HTTP ${res.status}` };
       } catch (e) {
         entry = { label: job.label, ok: false, detail: (e as Error).message };
@@ -59,12 +59,15 @@ export function ScanAllButton({ stale, size = "md", label = "Scan everything" }:
   const { progress, run } = useScanRunner();
   const ids = stale?.length ? stale : NICHES.map((n) => n.id);
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="relative">
       <Button size={size} variant="secondary" loading={progress.running} onClick={() => run(ids, { signals: true })}>
         {!progress.running && <RefreshCw className="h-3.5 w-3.5" />}
         {progress.running ? `Scanning ${progress.done + 1}/${progress.total}` : label}
       </Button>
-      <ScanProgressPanel progress={progress} />
+      {/* Floats over the page so a running scan never pushes the layout down. */}
+      <div className="absolute right-0 top-full z-40 mt-2">
+        <ScanProgressPanel progress={progress} />
+      </div>
     </div>
   );
 }

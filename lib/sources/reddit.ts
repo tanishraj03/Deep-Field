@@ -161,8 +161,20 @@ export interface CommunityRead {
  * Archive path: newest posts (volume, unmeasured) plus the newest posts past
  * the ~36h mark (measured), each capped at 100 by the service.
  */
-export async function readCommunity(sub: string, region: RegionCode): Promise<CommunityRead> {
+export async function readCommunity(sub: string, region: RegionCode, tier: "core" | "tail" = "core"): Promise<CommunityRead> {
   const dayAgo = Date.now() - 86_400_000;
+  if (tier === "tail" && !hasRedditApi()) {
+    // One request: the newest 100 posts old enough to have real counts. For
+    // most smaller communities that is their whole week.
+    const mature = await arctic.searchPosts({ subreddit: sub, after: "8d", before: "36h", limit: 100 });
+    const posts = mature.map((p) => fromArctic(p, region)).sort((a, b) => engagement(b) - engagement(a));
+    return {
+      posts: posts.filter((p) => (p.comments ?? 0) + (p.score ?? 0) > 2).slice(0, 20),
+      read: mature.length,
+      fresh24h: 0,
+      via: "archive",
+    };
+  }
   if (hasRedditApi()) {
     const hot = await oauthListing(`/r/${sub}/hot?limit=100&raw_json=1`);
     const posts = hot.map((d, i) => ({ ...fromListing(d, i + 1), region }));

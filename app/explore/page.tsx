@@ -1,5 +1,5 @@
 import { ExploreView } from "@/components/explore-view";
-import { loadPulse } from "@/lib/pulse/scan";
+import { loadSummaries } from "@/lib/pulse/scan";
 import type { RegionFilter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ const REGIONS = new Set(["ALL", "IN", "GLOBAL"]);
 
 /** Short searchable phrases from the hottest scanned topics. */
 async function suggestions(): Promise<string[]> {
-  const pulse = await loadPulse().catch(() => null);
+  const pulse = await loadSummaries().catch(() => null);
   if (!pulse) return ["ozempic", "creatine", "iPhone", "Zepto", "AI agents"];
   return pulse.scans
     .flatMap((s) => s.topics.slice(0, 2))

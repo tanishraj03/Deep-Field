@@ -12,6 +12,8 @@
  * editing.
  */
 
+import discovered from "./communities.json";
+
 export type RegionCode = "IN" | "GLOBAL";
 
 export interface Niche {
@@ -19,7 +21,10 @@ export interface Niche {
   label: string;
   /** One line for the niche card. */
   blurb: string;
+  /** Every community read for the niche: the hand-picked ones first, then discovered ones, busiest first. */
   subreddits: Record<RegionCode, string[]>;
+  /** The busiest ~16, read in depth; the rest get one lighter read each scan. */
+  core: Record<RegionCode, string[]>;
   /** YouTube mostPopular videoCategoryId, when the niche maps to one. Travel (19) and Education (27) have no trending chart — YouTube answers 404. */
   youtubeCategory?: string;
   /** Read Hacker News into this niche. */
@@ -28,7 +33,7 @@ export interface Niche {
   keywords: string[];
 }
 
-export const NICHES: Niche[] = [
+const CURATED: Omit<Niche, "core">[] = [
   {
     id: "tech-ai",
     label: "Tech & AI",
@@ -241,6 +246,36 @@ export const NICHES: Niche[] = [
     keywords: ["traffic", "metro", "rent", "flat", "pg", "rain", "pollution", "aqi", "bengaluru", "bangalore", "mumbai", "delhi", "city"],
   },
 ];
+
+/**
+ * Each niche's hand-picked communities plus those found by
+ * scripts/discover-communities.ts (lib/communities.json): checked to exist,
+ * be safe for work and post at least daily, ordered by posts per week.
+ */
+const FOUND = (discovered as { niches?: Record<string, Partial<Record<RegionCode, (string | { name: string })[]>>> }).niches ?? {};
+const MAX_COMMUNITIES = 100;
+const CORE = { IN: 6, GLOBAL: 10 } as const;
+
+function withCommunities(n: Omit<Niche, "core">): Niche {
+  const seen = new Set<string>();
+  const merge = (r: RegionCode) => [...n.subreddits[r], ...(FOUND[n.id]?.[r] ?? []).map((x) => (typeof x === "string" ? x : x.name))]
+    .filter((s) => !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
+  const IN = merge("IN");
+  const GLOBAL = merge("GLOBAL").slice(0, Math.max(0, MAX_COMMUNITIES - IN.length));
+  return {
+    ...n,
+    subreddits: { IN, GLOBAL },
+    core: {
+      IN: IN.slice(0, Math.max(CORE.IN, n.subreddits.IN.length)),
+      GLOBAL: GLOBAL.slice(0, Math.max(CORE.GLOBAL, n.subreddits.GLOBAL.length)),
+    },
+  };
+}
+
+export const NICHES: Niche[] = CURATED.map(withCommunities);
+
+/** The hand-picked communities alone, before discovery — what discovery starts from. */
+export const curatedSubreddits = (id: string) => CURATED.find((n) => n.id === id)?.subreddits ?? { IN: [], GLOBAL: [] };
 
 export const NICHE_BY_ID = new Map(NICHES.map((n) => [n.id, n]));
 

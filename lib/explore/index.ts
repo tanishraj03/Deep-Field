@@ -55,7 +55,7 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
   const indiaSubs = [...new Set([...(niche?.subreddits.IN ?? []), ...INDIA_CORE])].slice(0, 12);
   const globalSubs = [...new Set([...(niche?.subreddits.GLOBAL ?? []), ...GLOBAL_CORE])];
 
-  const [redditR, indiaR, hnR, ytR, newsR, wikiR, bskyR, gnewsR, lemmyR, igR] = await Promise.all([
+  const [redditR, indiaR, hnR, ytR, newsR, wikiR, bskyR, gnewsR, lemmyR, igR, hnMentionsR] = await Promise.all([
     region === "IN" ? Promise.resolve(null) : settle(() => reddit.searchReddit(query, { fallbackSubs: globalSubs })),
     region === "GLOBAL" ? Promise.resolve(null) : settle(() => reddit.searchReddit(query, { within: indiaSubs, fallbackSubs: indiaSubs })),
     india ? Promise.resolve(null) : settle(() => hn.search(query)),
@@ -73,6 +73,7 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
       : gnews.search(query, india)),
     india ? Promise.resolve(null) : settle(() => social.lemmySearch(query)),
     ig.hasInstagram() ? settle(() => ig.hashtagTop(query)) : Promise.resolve(null),
+    india ? Promise.resolve(null) : settle(() => hn.mentions(query)),
   ]);
 
   const sources: ExploreSourceResult[] = [];
@@ -207,6 +208,11 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
     totals: {
       conversations: counted.reduce((a, s) => a + (s.total ?? 0), 0) + ytPosts.length,
       comments: all.reduce((a, p) => a + (p.comments ?? 0), 0),
+      // Every post found plus every comment on them; HN's own count already
+      // includes its comments, so it replaces the story count rather than adding.
+      mentions: counted.reduce((a, s) => a + (s.total ?? 0), 0) + ytPosts.length
+        + all.reduce((a, p) => a + (p.comments ?? 0), 0)
+        + (hnMentionsR?.ok && hnR?.ok ? Math.max(0, hnMentionsR.value - hnR.value.week) : 0),
       score: all.reduce((a, p) => a + (p.source === "youtube" ? 0 : p.score ?? 0), 0),
       views: ytPosts.reduce((a, p) => a + (p.views ?? 0), 0),
     },

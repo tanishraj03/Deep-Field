@@ -46,7 +46,7 @@ Free-tier model ids change often, so each entry lists candidates and the first o
 
 ## Where the numbers come from
 
-- **Reddit** — 158 communities across 20 niches, split India / Global (`lib/niches.ts`). Read through the [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift) archive because Reddit's JSON blocks anonymous clients and its RSS rate-limits within a few requests. Archive counts are accurate once a thread is ~36h old (checked against Reddit: 225 vs 218 comments); newer threads count as volume and are labelled. Set `REDDIT_CLIENT_ID/SECRET` to use Reddit's own API with live counts.
+- **Reddit** — ~1,600 communities across 20 niches (up to 100 each), split India / Global: a hand-picked core in `lib/niches.ts` plus communities found by `scripts/discover-communities.ts` (checked to exist, be safe for work, be on-topic and post at least daily; saved in `lib/communities.json`). Each scan reads the busiest ~16 per niche in depth and the rest with one request, through a shared limiter that keeps the archive at a few requests a second. Read through the [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift) archive because Reddit's JSON blocks anonymous clients and its RSS rate-limits within a few requests. Archive counts are accurate once a thread is ~36h old (checked against Reddit: 225 vs 218 comments); newer threads count as volume and are labelled. Set `REDDIT_CLIENT_ID/SECRET` to use Reddit's own API with live counts.
 - **Hacker News** (Algolia), **GDELT** and **Google News** (articles per topic, top stories sized by outlets), **Wikipedia** pageviews (incl. most-read in India), **Google Trends** trending searches (IN/US), **Bluesky** (trending and post search), **Mastodon** (trending tags and shared links) and **Lemmy** — all keyless.
 - **X** — trending in India and worldwide, read from getdaytrends.com's public tracker. X has no free read API and scraping X itself breaks its terms.
 - **YouTube** — trending per category and most-viewed uploads per topic. Free key: `YOUTUBE_API_KEY`.
@@ -59,6 +59,10 @@ Nothing is estimated: a number a platform didn't report is left blank.
 **Virality** (0–100) is how fast a conversation is spreading: reactions (comments + upvotes/likes + views/100) per hour since its first post, plus how hard the average post lands.
 
 **Verdict** — every topic and Explore search gets *Make now*, *Worth testing* or *Skip*, cut from an opportunity score built on virality, heat, momentum, freshness and how crowded YouTube already is. In Explore the AI may move that score by at most 15 points, with reasons, so a fading or saturated topic can't be talked into "make now". Run `npx tsx scripts/score-report.ts` to see how the calls spread across the latest scans.
+
+## Daily scan
+
+A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel).
 
 ## Deploy
 

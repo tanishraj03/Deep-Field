@@ -11,13 +11,39 @@ import * as wiki from "@/lib/sources/wikipedia";
 import * as xtrends from "@/lib/sources/xtrends";
 import * as yt from "@/lib/sources/youtube";
 import { store } from "@/lib/store";
-import type { CommunityVolume, NicheScan, Post, Signal, SignalsScan, SourceRun } from "@/lib/types";
-import { pool } from "@/lib/utils";
+import type { CommunityVolume, NicheScan, Post, Signal, SignalsScan, SourceRun, Topic, WebMentions } from "@/lib/types";
+import { pool, shortQuery } from "@/lib/utils";
 import { attachLeftovers, clusterByRules, clusterWithAI, type Draft } from "./cluster";
 import { buildTopics, rescore } from "./score";
 
 export const scanKey = (niche: string) => `scan:${niche}`;
+export const summaryKey = (niche: string) => `summary:${niche}`;
 export const SIGNALS_KEY = "signals";
+
+/** Bump when scoring changes, so stored summaries are re-scored from their full scans. */
+const SCORE_VERSION = 3;
+
+/**
+ * A scan cut down to what the Pulse board shows — no posts, angles or
+ * questions — and scored once at write time. Full scans run to megabytes
+ * across twenty niches; summaries keep the board quick to load.
+ */
+export function summarize(scan: NicheScan): NicheScan {
+  const scored = rescore(scan);
+  return {
+    ...scored,
+    posts: [],
+    communities: scored.communities.map((c) => ({ ...c, daily: [] })),
+    topics: scored.topics.map((t) => ({ ...t, angles: [], questions: [], whyNow: "", postIds: [] })),
+    scoreVersion: SCORE_VERSION,
+  };
+}
+
+/* Short in-process caches: pages render on every request, scans change every few minutes. */
+const CACHE_MS = 20_000;
+let summariesCache: { at: number; value: Pulse } | null = null;
+let fullCache: { at: number; value: Pulse } | null = null;
+function invalidate() { summariesCache = null; fullCache = null; }
 
 /** Posts sent to the model per niche. Enough to see patterns, small enough to be fast. */
 const CLUSTER_LIMIT = 220;
@@ -54,7 +80,7 @@ async function readVolume(niche: Niche, previous: NicheScan | null) {
     previous.communities.some((c) => c.daily.length > 0);
   if (fresh && sameSubs) return { communities: previous!.communities, volumeAt: previous!.volumeAt, reused: true };
 
-  const communities = await pool(subs, 3, async ({ s, r }): Promise<CommunityVolume> => {
+  const communities = await pool(subs, 8, async ({ s, r }): Promise<CommunityVolume> => {
     const daily = await arctic.dailyPosts(s, 14).catch(() => []);
     return {
       name: `r/${s}`, region: r,
@@ -94,13 +120,15 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
   const posts = new Map<string, Post>();
   const add = (list: Post[]) => list.forEach((p) => { if (p.title && !posts.has(p.id)) posts.set(p.id, p); });
 
-  // 1. Reddit communities.
-  const subs = (["IN", "GLOBAL"] as RegionCode[]).flatMap((r) => niche.subreddits[r].map((s) => ({ s, r })));
+  // 1. Reddit communities: the core read in depth, the long tail lightly.
+  // The archive limiter paces the requests, so the pool can run wide.
+  const core = new Set([...niche.core.IN, ...niche.core.GLOBAL]);
+  const subs = (["IN", "GLOBAL"] as RegionCode[]).flatMap((r) => niche.subreddits[r].map((s) => ({ s, r, tier: core.has(s) ? "core" as const : "tail" as const })));
   const failures: string[] = [];
   let via = "archive";
-  const reads = await pool(subs, 3, async ({ s, r }) => {
+  const reads = await pool(subs, 8, async ({ s, r, tier }) => {
     try {
-      const read = await reddit.readCommunity(s, r);
+      const read = await reddit.readCommunity(s, r, tier);
       via = read.via;
       return read;
     } catch (e) {
@@ -124,7 +152,8 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     let note: string | undefined;
     for (const region of ["IN", "GLOBAL"] as RegionCode[]) {
       try {
-        const ranks = await reddit.hotRanks(niche.subreddits[region]);
+        // Reddit's multi-community feed takes a URL path, so only the core.
+        const ranks = await reddit.hotRanks(niche.core[region]);
         for (const [id, r] of ranks) {
           const p = posts.get(id);
           if (p) { p.hotRank = r; ranked++; }
@@ -198,6 +227,10 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
   drafts = attachLeftovers(drafts, [...posts.values()]);
 
   const topics = buildTopics(niche.id, drafts, posts, groupedBy, previous?.topics ?? []);
+  lap("topics");
+  const counted = await countWebMentions(topics);
+  sources.push({ source: "Web mentions (Bluesky, Hacker News)", ok: counted > 0, count: counted });
+  lap("web mentions");
   const keep = new Set(topics.flatMap((t) => t.postIds));
   const scan: NicheScan = {
     niche: niche.id,
@@ -215,7 +248,32 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     aiNote,
   };
   await store.set(scanKey(niche.id), scan);
+  await store.set(summaryKey(niche.id), summarize(scan)).catch(() => {});
+  invalidate();
   return scan;
+}
+
+/**
+ * How many people are talking about each topic beyond the threads we grouped:
+ * Bluesky's count of matching posts and Hacker News' count of matching
+ * stories and comments, over the last week. Both are the platform's own
+ * totals. Counted by the topic's search words, which the model writes as the
+ * phrase people actually use; without one, the title's first content words.
+ */
+async function countWebMentions(topics: Topic[]): Promise<number> {
+  let ok = 0;
+  await pool(topics, 4, async (t) => {
+    const query = t.query || shortQuery(t.title, 3);
+    if (!query) return;
+    const [bsky, hnCount] = await Promise.all([
+      social.blueskyCount(query).catch(() => null),
+      hn.mentions(query).catch(() => null),
+    ]);
+    const web: WebMentions = { query, bluesky: bsky?.count ?? null, blueskyCapped: bsky?.capped, hackernews: hnCount };
+    t.web = web;
+    if (bsky || hnCount !== null) ok++;
+  });
+  return ok;
 }
 
 export async function scanSignals(): Promise<SignalsScan> {
@@ -245,6 +303,7 @@ export async function scanSignals(): Promise<SignalsScan> {
   ]);
   const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources };
   await store.set(SIGNALS_KEY, scan);
+  invalidate();
   return scan;
 }
 
@@ -253,17 +312,47 @@ export interface Pulse {
   signals: SignalsScan | null;
 }
 
+const ORDER = new Map(NICHES.map((n, i) => [n.id, i]));
+const inOrder = (scans: NicheScan[]) =>
+  scans.filter((s) => ORDER.has(s.niche)).sort((a, b) => ORDER.get(a.niche)! - ORDER.get(b.niche)!);
+
+/** Every niche's full scan, posts included. For the assistant; screens use loadSummaries. */
 export async function loadPulse(): Promise<Pulse> {
+  if (fullCache && Date.now() - fullCache.at < CACHE_MS) return fullCache.value;
   const [docs, signals] = await Promise.all([
     store.list<NicheScan>("scan:"),
     store.get<SignalsScan>(SIGNALS_KEY),
   ]);
-  const order = new Map(NICHES.map((n, i) => [n.id, i]));
-  return {
-    scans: docs.map((d) => rescore(d.value)).filter((s) => order.has(s.niche))
-      .sort((a, b) => order.get(a.niche)! - order.get(b.niche)!),
-    signals: signals?.value ?? null,
-  };
+  const value = { scans: inOrder(docs.map((d) => rescore(d.value))), signals: signals?.value ?? null };
+  fullCache = { at: Date.now(), value };
+  return value;
+}
+
+/**
+ * Every niche's summary: what Pulse, Settings and Explore need, without
+ * posts. A niche whose summary is missing or was scored by older formulas is
+ * summarised from its full scan once, and the summary saved for next time.
+ */
+export async function loadSummaries(): Promise<Pulse> {
+  if (summariesCache && Date.now() - summariesCache.at < CACHE_MS) return summariesCache.value;
+  const [docs, signals] = await Promise.all([
+    store.list<NicheScan>("summary:"),
+    store.get<SignalsScan>(SIGNALS_KEY),
+  ]);
+  const have = new Map(docs.map((d) => d.value).filter((s) => s.scoreVersion === SCORE_VERSION).map((s) => [s.niche, s]));
+  const missing = NICHES.filter((n) => !have.has(n.id));
+  if (missing.length) {
+    await pool(missing, 5, async (n) => {
+      const full = await store.get<NicheScan>(scanKey(n.id));
+      if (!full) return;
+      const summary = summarize(full.value);
+      have.set(n.id, summary);
+      await store.set(summaryKey(n.id), summary).catch(() => {});
+    });
+  }
+  const value = { scans: inOrder([...have.values()]), signals: signals?.value ?? null };
+  summariesCache = { at: Date.now(), value };
+  return value;
 }
 
 export async function loadScan(nicheId: string): Promise<NicheScan | null> {

@@ -1,11 +1,13 @@
-name: Deep Field — Scan
+name: DeepField — Daily scan
 
-# Re-reads every niche four times a day so Pulse is fresh when you open it.
-# It calls the deployed app one niche per request (each fits inside a
-# serverless time limit; the whole catalogue does not). Standard runner only.
+# Wakes every hour and asks the app whether today's scan is due. The time is
+# set in the app (Settings → Daily scan, default 9:00 AM IST); the app answers
+# "yes" once a day, at the first wake at or after that hour. Each niche is
+# scanned in its own request, since one fits inside a serverless time limit
+# and the whole catalogue does not. Running it by hand always scans.
 on:
   schedule:
-    - cron: "15 0,6,12,18 * * *"   # 05:45, 11:45, 17:45, 23:45 IST
+    - cron: "7 * * * *"   # hourly, at :07 (off the busy top of the hour)
   workflow_dispatch:
     inputs:
       niches:
@@ -14,41 +16,51 @@ on:
         default: ""
 
 concurrency:
-  group: deep-field-scan
+  group: deepfield-scan
   cancel-in-progress: false
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 120
     steps:
       - name: Scan
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           ONLY: ${{ inputs.niches }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -uo pipefail
           if [ -z "${APP_URL:-}" ]; then
             echo "::error::Add the APP_URL secret (Settings → Secrets → Actions)."; exit 1
           fi
+          APP_URL="${APP_URL%/}"
           AUTH="Authorization: Bearer ${CRON_SECRET}"
+
+          if [ "$EVENT" = "schedule" ]; then
+            CLAIM=$(curl -s -X POST "${APP_URL}/api/schedule" -H "$AUTH" --max-time 30)
+            echo "Schedule: $CLAIM"
+            DUE=$(echo "$CLAIM" | python3 -c "import json,sys;print(json.load(sys.stdin).get('due', False))" 2>/dev/null || echo "False")
+            if [ "$DUE" != "True" ]; then echo "Not time yet."; exit 0; fi
+          fi
 
           if [ -n "${ONLY:-}" ]; then
             NICHES=$(echo "$ONLY" | tr ',' ' ')
           else
-            NICHES=$(curl -sf "${APP_URL}/api/scan" | python3 -c "import json,sys;print(' '.join(n['id'] for n in json.load(sys.stdin)['niches']))")
+            NICHES=$(curl -s "${APP_URL}/api/scan" | python3 -c "import json,sys;print(' '.join(n['id'] for n in json.load(sys.stdin)['niches']))")
           fi
+          if [ -z "$NICHES" ]; then echo "::error::Could not list niches from ${APP_URL}/api/scan"; exit 1; fi
 
-          echo "### Deep Field scan" >> "$GITHUB_STEP_SUMMARY"
+          echo "### DeepField scan" >> "$GITHUB_STEP_SUMMARY"
           FAILED=0
           for N in signals $NICHES; do
             if [ "$N" = "signals" ]; then Q="signals=1"; else Q="niche=$N"; fi
-            HTTP=$(curl -s -o out.json -w "%{http_code}" -X POST "${APP_URL}/api/scan?${Q}" -H "$AUTH" --max-time 290)
+            HTTP=$(curl -s -o out.json -w "%{http_code}" -X POST "${APP_URL}/api/scan?${Q}" -H "$AUTH" --max-time 295)
             LINE=$(python3 -c "import json;d=json.load(open('out.json'));print(d.get('topics', d.get('signals','')), d.get('model') or '', d.get('aiNote') or d.get('error') or '')" 2>/dev/null || echo "")
             echo "- \`$N\` → HTTP $HTTP $LINE" | tee -a "$GITHUB_STEP_SUMMARY"
             [ "$HTTP" -ge 200 ] && [ "$HTTP" -lt 300 ] || FAILED=$((FAILED+1))
-            sleep 5
+            sleep 3
           done
-          # One niche failing is normal (a source was down); all failing is not.
+          # One niche failing is normal (a source was down); many failing is not.
           [ "$FAILED" -lt 5 ]

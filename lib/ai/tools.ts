@@ -5,7 +5,7 @@ import { loadPulse } from "@/lib/pulse/scan";
 import { readThread } from "@/lib/sources/reddit";
 import type { NicheScan, Post, RegionFilter, Topic } from "@/lib/types";
 import { compact, relativeTime, truncate } from "@/lib/utils";
-import { commentIndex } from "@/lib/view";
+import { commentIndex, mentionsOf } from "@/lib/view";
 import type { ToolDef } from "./client";
 
 /** The assistant's tools. Each one reads the same data the interface shows. */
@@ -98,6 +98,7 @@ function topicBrief(t: Topic, scan: NicheScan, region: RegionFilter) {
     summary: t.summary,
     whyNow: t.whyNow,
     sentiment: t.sentiment,
+    mentions: (() => { const m = mentionsOf(t, region); return `${m.total}${m.capped ? "+" : ""} (${m.threads} posts+comments in threads${m.bluesky ? `, ${m.bluesky} on Bluesky` : ""}${m.hackernews ? `, ${m.hackernews} on Hacker News` : ""})`; })(),
     counts: `${t.metrics.posts} posts (${t.metrics.postsIN} India / ${t.metrics.postsGLOBAL} global), ${compact(t.metrics.comments)} comments, ${compact(t.metrics.score)} upvotes${t.metrics.views ? `, ${compact(t.metrics.views)} views` : ""}, ${t.metrics.communities} communities`,
     questions: t.questions,
     angles: t.angles.map((a) => `${a.format}: ${a.hook}`),
@@ -137,6 +138,7 @@ async function researchTopic(args: { query: string; region?: RegionFilter }) {
     query: r.query,
     region: r.region,
     totalConversations: r.totals.conversations,
+    totalMentions: r.totals.mentions,
     opportunity: r.opportunity ? `${r.opportunity.call} (${r.opportunity.score}/100), virality ${r.opportunity.virality}/100: ${r.opportunity.signals.join("; ")}` : undefined,
     comments: r.totals.comments,
     upvotes: r.totals.score,

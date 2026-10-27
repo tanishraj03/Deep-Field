@@ -69,6 +69,18 @@ export interface Topic {
   isNew: boolean;
   /** "ai" when a model grouped it, "rules" when keyword overlap did. */
   groupedBy: "ai" | "rules";
+  /** 2-4 words people use when they mention it — what web mentions are counted by. */
+  query?: string;
+  /** Mentions beyond the grouped threads, counted by each platform's search over the last 7 days. */
+  web?: WebMentions;
+}
+
+export interface WebMentions {
+  query: string;
+  bluesky: number | null;
+  /** Bluesky stops counting at 10,000; the real number is higher. */
+  blueskyCapped?: boolean;
+  hackernews: number | null;
 }
 
 export interface TopicVerdict {
@@ -88,6 +100,8 @@ export interface TopicMetrics {
   engagement: number;
   /** Engagement per hour since the first post — the velocity behind virality. */
   perHour: number;
+  /** Every post and comment in the grouped threads: each one is somebody talking about it. */
+  mentions: number;
   communities: number;
   /** Posts in Indian communities, for the India/Global split. */
   postsIN: number;
@@ -126,6 +140,8 @@ export interface NicheScan {
   sources: SourceRun[];
   /** Every post fetched this scan, before keeping the strongest. */
   postsRead?: number;
+  /** Set on slim summaries: the scoring version they were scored with. */
+  scoreVersion?: number;
   model: string | null;
   /** Why topics fell back to rules, when they did. */
   aiNote?: string;
@@ -176,7 +192,8 @@ export interface ExploreResult {
   posts: Post[];
   communities: { name: string; posts: number; region: RegionCode }[];
   regionSplit: { IN: number; GLOBAL: number };
-  totals: { conversations: number; comments: number; score: number; views: number };
+  /** conversations: threads, videos, articles and social posts found. mentions: those plus every comment on them. */
+  totals: { conversations: number; comments: number; score: number; views: number; mentions?: number };
   links: { label: string; url: string }[];
   /** Is it worth making content on? Computed from the numbers, before any AI read. */
   opportunity?: ExploreOpportunity;

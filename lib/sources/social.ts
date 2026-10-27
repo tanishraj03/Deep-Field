@@ -159,3 +159,12 @@ export async function lemmySearch(query: string): Promise<Post[]> {
     snippet: p.post.body ? truncate(stripHtml(p.post.body), 200) : undefined,
   }));
 }
+
+/** How many Bluesky posts mention a query in the last `days`. Bluesky stops counting at 10,000. */
+export async function blueskyCount(query: string, days = 7): Promise<{ count: number; capped: boolean }> {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const r = await getJson<{ hitsTotal?: number }>(
+    `https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=1&since=${since}`);
+  const count = r.hitsTotal ?? 0;
+  return { count, capped: count >= 10_000 };
+}
