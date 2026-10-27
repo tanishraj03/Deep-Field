@@ -1,24 +1,26 @@
 import { backgroundModels } from "@/lib/ai/models";
 import { NICHE_BY_ID, NICHES, type Niche, type RegionCode } from "@/lib/niches";
 import * as arctic from "@/lib/sources/arctic";
+import * as gnews from "@/lib/sources/googlenews";
 import * as hn from "@/lib/sources/hackernews";
 import { errMessage } from "@/lib/sources/http";
 import * as reddit from "@/lib/sources/reddit";
 import * as social from "@/lib/sources/social";
 import * as trends from "@/lib/sources/trends";
 import * as wiki from "@/lib/sources/wikipedia";
+import * as xtrends from "@/lib/sources/xtrends";
 import * as yt from "@/lib/sources/youtube";
 import { store } from "@/lib/store";
 import type { CommunityVolume, NicheScan, Post, Signal, SignalsScan, SourceRun } from "@/lib/types";
 import { pool } from "@/lib/utils";
-import { clusterByRules, clusterWithAI, type Draft } from "./cluster";
-import { buildTopics } from "./score";
+import { attachLeftovers, clusterByRules, clusterWithAI, type Draft } from "./cluster";
+import { buildTopics, rescore } from "./score";
 
 export const scanKey = (niche: string) => `scan:${niche}`;
 export const SIGNALS_KEY = "signals";
 
 /** Posts sent to the model per niche. Enough to see patterns, small enough to be fast. */
-const CLUSTER_LIMIT = 160;
+const CLUSTER_LIMIT = 220;
 
 function rank(p: Post): number {
   const hot = p.hotRank ? 60 / (1 + p.hotRank / 10) : 0;
@@ -107,6 +109,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     }
   });
   reads.forEach((r) => r && add(r.posts));
+  let postsRead = reads.reduce((a, r) => a + (r?.read ?? 0), 0);
   sources.push({
     source: via === "reddit-api" ? "Reddit API" : "Reddit (archive)",
     ok: reads.some(Boolean),
@@ -140,6 +143,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     try {
       const front = await hn.frontPage();
       add(front);
+      postsRead += front.length;
       sources.push({ source: "Hacker News", ok: true, count: front.length });
     } catch (e) {
       sources.push({ source: "Hacker News", ok: false, count: 0, note: errMessage(e) });
@@ -154,10 +158,11 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
       const got: Post[] = [];
       const notes: string[] = [];
       for (const geo of ["IN", "US"] as const) {
-        try { got.push(...await yt.mostPopular(geo, niche.youtubeCategory, 10)); }
+        try { got.push(...await yt.mostPopular(geo, niche.youtubeCategory, 25)); }
         catch (e) { notes.push(`${geo}: ${errMessage(e)}`); }
       }
       add(got);
+      postsRead += got.length;
       sources.push({ source: "YouTube", ok: got.length > 0, count: got.length, note: notes.join("; ") || undefined });
     }
   }
@@ -190,6 +195,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
   lap("clustering");
   const groupedBy = drafts.length ? "ai" : "rules";
   if (!drafts.length) drafts = clusterByRules(selected);
+  drafts = attachLeftovers(drafts, [...posts.values()]);
 
   const topics = buildTopics(niche.id, drafts, posts, groupedBy, previous?.topics ?? []);
   const keep = new Set(topics.flatMap((t) => t.postIds));
@@ -204,6 +210,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     dailyVolume: dailyVolumeOf(volume.communities),
     volumeAt: volume.volumeAt,
     sources,
+    postsRead,
     model,
     aiNote,
   };
@@ -230,6 +237,11 @@ export async function scanSignals(): Promise<SignalsScan> {
     run("Wikipedia global", () => wiki.topGlobal(20)),
     run("Bluesky trending", () => social.blueskyTrending()),
     run("Mastodon trending", () => social.mastodonTrending()),
+    run("Mastodon shared links", () => social.mastodonLinks()),
+    run("X trending India", () => xtrends.trending("IN")),
+    run("X trending worldwide", () => xtrends.trending("GLOBAL")),
+    run("Google News India", () => gnews.topStories("IN")),
+    run("Google News US", () => gnews.topStories("US")),
   ]);
   const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources };
   await store.set(SIGNALS_KEY, scan);
@@ -248,12 +260,13 @@ export async function loadPulse(): Promise<Pulse> {
   ]);
   const order = new Map(NICHES.map((n, i) => [n.id, i]));
   return {
-    scans: docs.map((d) => d.value).filter((s) => order.has(s.niche))
+    scans: docs.map((d) => rescore(d.value)).filter((s) => order.has(s.niche))
       .sort((a, b) => order.get(a.niche)! - order.get(b.niche)!),
     signals: signals?.value ?? null,
   };
 }
 
 export async function loadScan(nicheId: string): Promise<NicheScan | null> {
-  return (await store.get<NicheScan>(scanKey(nicheId)))?.value ?? null;
+  const doc = await store.get<NicheScan>(scanKey(nicheId));
+  return doc ? rescore(doc.value) : null;
 }

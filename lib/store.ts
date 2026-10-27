@@ -9,7 +9,7 @@ import { config } from "@/lib/config";
  * Everything the app keeps is a document: one scan per niche, one signals
  * scan, cached Explore results. With Supabase configured they live in the
  * `app_settings` table (key text, value jsonb) that already exists in every
- * Deep Field database — no migration needed. Without it they live in a local
+ * DeepField database — no migration needed. Without it they live in a local
  * JSON file, or /tmp on Vercel, where they last as long as the container.
  */
 

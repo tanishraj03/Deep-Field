@@ -106,3 +106,43 @@ export function clusterByRules(posts: Post[]): Draft[] {
   }
   return drafts;
 }
+
+/**
+ * The model only sees the strongest few hundred posts, but a scan reads
+ * thousands. Every leftover post that is plainly about one of the topics —
+ * sharing at least two of its distinctive words, one of them from the topic's
+ * title — joins it, so a topic's counts reflect everything read, not just the
+ * sample. Words common across the whole scan ("india", "job") do not count.
+ */
+export function attachLeftovers(drafts: Draft[], posts: Post[]): Draft[] {
+  const used = new Set(drafts.flatMap((d) => d.postIds));
+  const docs = posts.map((p) => ({ p, words: new Set(terms(p.title)) }));
+  const df = new Map<string, number>();
+  for (const d of docs) for (const w of d.words) df.set(w, (df.get(w) ?? 0) + 1);
+  const common = (w: string) => (df.get(w) ?? 0) > Math.max(12, posts.length * 0.04);
+
+  const byId = new Map(posts.map((p) => [p.id, p]));
+  const vocab = drafts.map((d) => {
+    const title = new Set(terms(d.title).filter((w) => !common(w)));
+    const all = new Set([...title, ...terms(d.summary), ...d.postIds.flatMap((id) => terms(byId.get(id)?.title ?? ""))].filter((w) => !common(w)));
+    return { title, all };
+  });
+
+  const added = drafts.map(() => [] as string[]);
+  for (const { p, words } of docs) {
+    if (used.has(p.id) || RECURRING_TITLE.test(p.title)) continue;
+    const distinct = [...words].filter((w) => !common(w));
+    if (distinct.length < 2) continue;
+    let best = -1, bestScore = 0;
+    vocab.forEach((v, i) => {
+      const hits = distinct.filter((w) => v.all.has(w));
+      if (hits.length < 2 || !hits.some((w) => v.title.has(w))) return;
+      const score = hits.length / distinct.length;
+      if (score >= 0.34 && score > bestScore) { best = i; bestScore = score; }
+    });
+    if (best >= 0 && added[best].length < 60) added[best].push(p.id);
+  }
+  return drafts.map((d, i) => (added[i].length ? { ...d, postIds: [...d.postIds, ...added[i]] } : d));
+}
+
+const RECURRING_TITLE = /\b(daily|weekly|monthly)\b.*\b(thread|megathread)\b|\bmega ?thread\b/i;

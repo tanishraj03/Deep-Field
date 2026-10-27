@@ -20,7 +20,7 @@ export interface Niche {
   /** One line for the niche card. */
   blurb: string;
   subreddits: Record<RegionCode, string[]>;
-  /** YouTube mostPopular videoCategoryId, when the niche maps to one. */
+  /** YouTube mostPopular videoCategoryId, when the niche maps to one. Travel (19) and Education (27) have no trending chart — YouTube answers 404. */
   youtubeCategory?: string;
   /** Read Hacker News into this niche. */
   hackerNews?: boolean;
@@ -207,7 +207,6 @@ export const NICHES: Niche[] = [
       IN: ["IndiaTravel", "solotravelindia", "incredibleindia"],
       GLOBAL: ["travel", "solotravel", "digitalnomad", "awardtravel"],
     },
-    youtubeCategory: "19",
     keywords: ["travel", "flight", "visa", "trip", "hotel", "airline", "indigo", "airport", "tourism"],
   },
   {
@@ -218,7 +217,6 @@ export const NICHES: Niche[] = [
       IN: ["JEENEETards", "Indian_Academia", "UPSC", "CATpreparation", "Indians_StudyAbroad"],
       GLOBAL: ["college", "GradSchool", "languagelearning", "studytips"],
     },
-    youtubeCategory: "27",
     keywords: ["exam", "jee", "neet", "upsc", "college", "university", "student", "admission", "result", "cbse"],
   },
   {

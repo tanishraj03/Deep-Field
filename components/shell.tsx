@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Activity, Laptop, Moon, Search, Sparkles, Sun, Waypoints } from "lucide-react";
+import { Activity, Laptop, Moon, Search, Settings, Sparkles, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
 
@@ -11,7 +11,6 @@ const NAV = [
   { href: "/", label: "Pulse", icon: Activity, hint: "What's being talked about" },
   { href: "/explore", label: "Explore", icon: Search, hint: "Research any topic" },
   { href: "/assistant", label: "Assistant", icon: Sparkles, hint: "Ask and dig deeper" },
-  { href: "/sources", label: "Sources", icon: Waypoints, hint: "Data, models and keys" },
 ];
 
 function isActive(path: string, href: string) {
@@ -26,7 +25,18 @@ function Logo() {
         <span className="absolute h-3 w-3 rounded-full border-[1.5px] border-canvas" />
         <span className="absolute h-1 w-1 translate-x-[5px] -translate-y-[5px] rounded-full bg-ember" />
       </span>
-      <span className="text-[0.95rem] font-semibold tracking-tight">Deep Field</span>
+      <span className="text-[0.95rem] font-semibold tracking-tight">DeepField</span>
+    </Link>
+  );
+}
+
+/** Data sources, models and keys live behind this, out of the main navigation. */
+function SettingsLink() {
+  const active = usePathname().startsWith("/settings");
+  return (
+    <Link href="/settings" aria-label="Settings" title="Settings: sources, models and keys"
+      className={cn("rounded-pill p-2 transition-colors", active ? "bg-hair/[0.07] text-ink" : "text-faint hover:bg-hair/[0.05] hover:text-ink")}>
+      <Settings className="h-4 w-4" />
     </Link>
   );
 }
@@ -90,17 +100,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="mt-auto space-y-3 px-1">
-          <p className="px-2 text-[0.6875rem] leading-relaxed text-faint">
-            Reddit · Hacker News · YouTube · News · Wikipedia · Google Trends · Bluesky · Mastodon
-          </p>
+        <div className="mt-auto flex items-center justify-between px-1">
           <ThemeSwitch />
+          <SettingsLink />
         </div>
       </aside>
 
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-canvas/80 px-4 py-3 backdrop-blur-xl lg:hidden">
         <Logo />
-        <ThemeSwitch />
+        <div className="flex items-center gap-1"><ThemeSwitch /><SettingsLink /></div>
       </header>
 
       <main className={cn("min-w-0 flex-1", fullBleed ? "" : "px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8")}>

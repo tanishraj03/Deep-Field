@@ -46,6 +46,16 @@ export const config = {
   /** YouTube Data API v3. Free, 10,000 units/day. Optional. */
   youtube: { apiKey: process.env.YOUTUBE_API_KEY ?? "" },
 
+  /**
+   * Instagram's official hashtag search, through your own Business or Creator
+   * account. Optional and free; Meta allows 30 distinct hashtags a week.
+   * Needs a long-lived token with instagram_basic and the account's IG user id.
+   */
+  instagram: {
+    accessToken: process.env.INSTAGRAM_ACCESS_TOKEN ?? "",
+    userId: process.env.INSTAGRAM_USER_ID ?? "",
+  },
+
   supabase: {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",

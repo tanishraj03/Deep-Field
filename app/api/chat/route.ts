@@ -32,13 +32,15 @@ async function describeContext(ctx: ChatContext | undefined): Promise<string | u
     const posts = t.postIds.map((id) => scan.posts.find((p) => p.id === id)).filter((p) => !!p);
     return `Topic "${t.title}" in ${nicheLabel(t.niche)} (heat ${t.heat}/100; ref for tools: ${t.niche}:${t.id}).
 ${t.summary} ${t.whyNow}
-${t.metrics.posts} posts (${t.metrics.postsIN} India / ${t.metrics.postsGLOBAL} global), ${compact(t.metrics.comments)} comments, ${t.metrics.communities} communities. Sentiment: ${t.sentiment}.
+${t.metrics.posts} posts (${t.metrics.postsIN} India / ${t.metrics.postsGLOBAL} global), ${compact(t.metrics.comments)} comments, ${compact(t.metrics.views)} views, ${t.metrics.communities} communities. Sentiment: ${t.sentiment}.
+Virality ${t.virality}/100 (~${compact(t.metrics.perHour)} reactions an hour). DeepField verdict: ${t.verdict.call} (${t.verdict.score}/100) — ${t.verdict.reasons.join("; ")}.
 Threads:
 ${posts.map((p, i) => `${postLine(p!, i)} — ${p!.url}`).join("\n")}`;
   }
   const r = await cachedExplore(ctx.query, ctx.region);
   if (!r) return `The user was researching "${ctx.query}". Use research_topic to get the data.`;
   return `Research on "${r.query}" (${r.region === "ALL" ? "everywhere" : r.region === "IN" ? "India" : "global"}): ${r.totals.conversations} conversations, ${compact(r.totals.comments)} comments.
+${r.opportunity ? `Opportunity: ${r.opportunity.call} (${r.opportunity.score}/100), virality ${r.opportunity.virality}/100 — ${r.opportunity.signals.join("; ")}` : ""}
 ${r.sources.map((s) => `${s.source}: ${s.ok ? `${s.total ?? "?"} in ${s.window}` : "unavailable"}`).join("; ")}
 Top communities: ${r.communities.slice(0, 8).map((c) => `${c.name} (${c.posts})`).join(", ")}
 Top threads:

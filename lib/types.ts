@@ -8,7 +8,7 @@ export type RegionFilter = "ALL" | RegionCode;
 
 export type SourceId =
   | "reddit" | "hackernews" | "youtube" | "news" | "wikipedia"
-  | "google-trends" | "bluesky" | "mastodon";
+  | "google-trends" | "bluesky" | "mastodon" | "x" | "lemmy" | "instagram";
 
 /**
  * One conversation as it exists on its platform — a Reddit thread, an HN
@@ -56,10 +56,14 @@ export interface Topic {
   angles: ContentAngle[];
   postIds: string[];
   metrics: TopicMetrics;
-  /** 0–100 on one scale across every niche. */
+  /** 0–100 on one scale across every niche: size and momentum. */
   heat: number;
+  /** 0–100: how fast it is gathering interactions and views, and how hard each post lands. */
+  virality: number;
+  /** Should a creator make something on this now? */
+  verdict: TopicVerdict;
   /** The same numbers counting only India's or only Global's posts — what the region filter shows. */
-  byRegion: Record<RegionCode, { metrics: TopicMetrics; heat: number }>;
+  byRegion: Record<RegionCode, { metrics: TopicMetrics; heat: number; virality: number }>;
   /** Change against the closest topic in the previous scan; null if new. */
   heatDelta: number | null;
   isNew: boolean;
@@ -67,11 +71,23 @@ export interface Topic {
   groupedBy: "ai" | "rules";
 }
 
+export interface TopicVerdict {
+  call: "make" | "test" | "skip";
+  /** 0–100, the number the call is cut from. */
+  score: number;
+  /** The two or three facts that decided it, plainly worded. */
+  reasons: string[];
+}
+
 export interface TopicMetrics {
   posts: number;
   comments: number;
   score: number;
   views: number;
+  /** Comments + upvotes/likes + views/100: one number for "how much reaction". */
+  engagement: number;
+  /** Engagement per hour since the first post — the velocity behind virality. */
+  perHour: number;
   communities: number;
   /** Posts in Indian communities, for the India/Global split. */
   postsIN: number;
@@ -108,6 +124,8 @@ export interface NicheScan {
   /** When community volume was last read — it changes daily, so it is reused between scans. */
   volumeAt: string | null;
   sources: SourceRun[];
+  /** Every post fetched this scan, before keeping the strongest. */
+  postsRead?: number;
   model: string | null;
   /** Why topics fell back to rules, when they did. */
   aiNote?: string;
@@ -160,6 +178,22 @@ export interface ExploreResult {
   regionSplit: { IN: number; GLOBAL: number };
   totals: { conversations: number; comments: number; score: number; views: number };
   links: { label: string; url: string }[];
+  /** Is it worth making content on? Computed from the numbers, before any AI read. */
+  opportunity?: ExploreOpportunity;
+}
+
+export interface ExploreOpportunity {
+  virality: number;
+  perHour: number;
+  engagementPerConversation: number;
+  /** Conversation per day over the last 3 days against the 4 before; 1 = flat. */
+  momentum: number | null;
+  /** Wikipedia views over the last 3 days against the 7 before. */
+  attention: number | null;
+  saturation: { videos: number; views: number };
+  score: number;
+  call: TopicVerdict["call"];
+  signals: string[];
 }
 
 export interface ExploreInsight {
@@ -168,7 +202,9 @@ export interface ExploreInsight {
   sentiment: { label: Sentiment; detail: string };
   questions: string[];
   angles: ContentAngle[];
+  /** One-line headline of the decision, kept for older cached insights. */
   verdict: string;
+  decision?: { call: TopicVerdict["call"]; score: number; reasons: string[]; risks: string[]; gap: string };
   model: string;
 }
 

@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowBigUp, MessageSquare, Users } from "lucide-react";
+import { ArrowBigUp, Eye, MessageSquare, Users } from "lucide-react";
 import { nicheLabel } from "@/lib/niches";
 import type { RegionFilter, SourceId, Topic } from "@/lib/types";
 import { topicIn } from "@/lib/view";
-import { Badge, Card, Delta, Heat, Metric, RegionSplit, SourceTag } from "./ui";
+import { Badge, Card, Delta, Heat, Metric, RegionSplit, SourceTag, VerdictBadge, ViralityChip } from "./ui";
 
 const SENTIMENT: Record<Topic["sentiment"], { label: string; tone: "rise" | "fall" | "neutral" | "outline" }> = {
   positive: { label: "Positive", tone: "rise" },
@@ -23,7 +23,7 @@ export function topicHref(t: Topic) {
 }
 
 export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; region: RegionFilter; showNiche?: boolean; rank?: number }) {
-  const { metrics, heat } = topicIn(topic, region);
+  const { metrics, heat, virality } = topicIn(topic, region);
   return (
     <Link href={topicHref(topic)} className="group block h-full">
       <Card hover className="flex h-full flex-col p-4">
@@ -37,6 +37,7 @@ export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; re
               </span>
             )}
             <Delta isNew={topic.isNew} delta={topic.heatDelta} />
+            <VerdictBadge verdict={topic.verdict} />
           </div>
           <Heat value={heat} />
         </div>
@@ -46,8 +47,10 @@ export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; re
         {topic.summary && <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-muted">{topic.summary}</p>}
         <div className="mt-auto pt-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-3">
+            <ViralityChip value={virality} perHour={metrics.perHour} />
             <Metric icon={MessageSquare} value={metrics.comments} label="comments" />
             <Metric icon={ArrowBigUp} value={metrics.score} label="upvotes" />
+            <Metric icon={Eye} value={metrics.views} label="views" />
             <span className="text-xs text-muted"><span className="num font-medium text-ink/80">{metrics.posts}</span> posts</span>
             <Metric icon={Users} value={metrics.communities} label="communities" />
           </div>
@@ -74,6 +77,7 @@ export function TopicRow({ topic, region }: { topic: Topic; region: RegionFilter
           <span className="num">{metrics.posts} posts</span>
           {metrics.comments > 0 && <span className="num">· {metrics.comments.toLocaleString("en-US")} comments</span>}
           {topic.isNew && <span className="text-accent">· new</span>}
+          {topic.verdict?.call === "make" && <span className="text-rise">· make now</span>}
         </p>
       </div>
       <Heat value={heat} size="sm" />

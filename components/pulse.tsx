@@ -7,7 +7,7 @@ import { ArrowRight, ChevronDown, ExternalLink, Radar, RefreshCw, TriangleAlert 
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import type { NicheScan, RegionFilter, Signal, SignalsScan, SourceId } from "@/lib/types";
 import { compact, relativeTime } from "@/lib/utils";
-import { topicIn, visibleTopics, volumeRows, weeklyPosts } from "@/lib/view";
+import { rankTopics, topicIn, visibleTopics, volumeRows, weeklyPosts, type RankBy } from "@/lib/view";
 import { DailyBars, RankBars, Sparkline } from "./charts";
 import { useRegion } from "./region";
 import { ScanAllButton, ScanProgressPanel, useScanRunner } from "./scan-runner";
@@ -25,6 +25,13 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
   };
   const byNiche = useMemo(() => new Map(scans.map((s) => [s.niche, s])), [scans]);
   const { progress, run } = useScanRunner();
+  const [rankBy, setRankBy] = useState<RankBy>("heat");
+  const rankSwitch = (
+    <Segmented value={rankBy} onChange={setRankBy} layoutId="pulse-rank" size="sm" options={[
+      { value: "heat", label: "Heat" },
+      { value: "virality", label: "Virality" },
+    ]} />
+  );
 
   const missing = NICHES.filter((n) => !byNiche.has(n.id)).map((n) => n.id);
   const stale = NICHES.filter((n) => {
@@ -60,6 +67,8 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
     <div className="space-y-7">
       <Header
         region={region} setRegion={setRegion} lastScan={lastScan}
+        // Older scans did not record it; a partial sum would understate the reach.
+        read={scans.filter((s) => s.postsRead).length >= scans.length / 2 ? scans.reduce((a, s) => a + (s.postsRead ?? 0), 0) : undefined}
         action={<ScanAllButton stale={stale} size="sm" label={stale.length ? `Refresh ${stale.length === NICHES.length ? "all" : `${stale.length} stale`}` : "Rescan all"} />}
       />
 
@@ -69,7 +78,7 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
 
       {niche ? (
         selected
-          ? <NicheDetail scan={selected} region={region} spiking={signals && <SpikingNow signals={signals} region={region} niche={niche} />} />
+          ? <NicheDetail scan={selected} region={region} rankBy={rankBy} rankSwitch={rankSwitch} spiking={signals && <SpikingNow signals={signals} region={region} niche={niche} />} />
           : (
             <EmptyState
               icon={Radar}
@@ -79,15 +88,15 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
             />
           )
       ) : (
-        <Overview scans={scans} region={region} setNiche={setNiche} missing={missing}
+        <Overview scans={scans} region={region} setNiche={setNiche} missing={missing} rankBy={rankBy} rankSwitch={rankSwitch}
           spiking={signals && <SpikingNow signals={signals} region={region} niche={null} />} />
       )}
     </div>
   );
 }
 
-function Header({ region, setRegion, lastScan, action }: {
-  region: RegionFilter; setRegion: (r: RegionFilter) => void; lastScan: string | null; action?: React.ReactNode;
+function Header({ region, setRegion, lastScan, read, action }: {
+  region: RegionFilter; setRegion: (r: RegionFilter) => void; lastScan: string | null; read?: number; action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -95,6 +104,7 @@ function Header({ region, setRegion, lastScan, action }: {
         <h1 className="text-[1.75rem] font-semibold tracking-tight">Pulse</h1>
         <p className="mt-1 text-sm text-muted">
           What the internet is talking about right now{lastScan ? <> · updated {relativeTime(lastScan)}</> : null}
+          {read ? <> · <span className="num">{compact(read)}</span> posts read</> : null}
         </p>
       </div>
       <div className="flex flex-wrap items-start gap-2">
@@ -112,11 +122,12 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
   const comments = views.reduce((a, v) => a + v.metrics.comments, 0);
   const weekly = scans.reduce((a, s) => a + weeklyPosts(s, region), 0);
   const rising = topics.filter((t) => (t.heatDelta ?? 0) > 0 || t.isNew).length;
+  const makeNow = topics.filter((t) => t.verdict?.call === "make").length;
   const hottest = [...topics].sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat)[0];
 
   return (
     <div className="grid grid-cols-2 gap-y-5 border-y py-4 md:grid-cols-4 md:divide-x md:divide-hair/10 [&>*]:md:px-5 [&>*:first-child]:md:pl-0">
-      <Stat label="Conversations" value={compact(topics.length)} sub={<><span className="num">{compact(posts)}</span> threads grouped into topics</>} />
+      <Stat label="Conversations" value={compact(topics.length)} sub={<><span className="num">{compact(posts)}</span> threads · <span className="num text-rise">{makeNow}</span> worth making now</>} />
       <Stat label="Comments measured" value={compact(comments)} sub="as reported by each platform" />
       <Stat label="Posts this week" value={compact(weekly)} sub={`across ${scans.reduce((a, s) => a + s.communities.filter((c) => region === "ALL" || c.region === region).length, 0)} tracked communities`} />
       <Stat
@@ -190,14 +201,12 @@ function NichePills({ niche, setNiche, scans, region }: {
 
 const BOARD_PREVIEW = 9;
 
-function Overview({ scans, region, setNiche, missing, spiking }: {
+function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitch }: {
   scans: NicheScan[]; region: RegionFilter; setNiche: (n: string) => void; missing: string[]; spiking: React.ReactNode;
+  rankBy: RankBy; rankSwitch: React.ReactNode;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const hottest = scans
-    .flatMap((s) => visibleTopics(s, region))
-    .sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat)
-    .slice(0, 6);
+  const hottest = rankTopics(scans.flatMap((s) => visibleTopics(s, region)), region, rankBy).slice(0, 6);
 
   const board = scans
     .map((s) => ({ s, topics: visibleTopics(s, region) }))
@@ -209,7 +218,10 @@ function Overview({ scans, region, setNiche, missing, spiking }: {
   return (
     <div className="space-y-8">
       <section>
-        <h2 className="mb-3 text-[1.05rem] font-semibold tracking-tight">Hottest conversations</h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-[1.05rem] font-semibold tracking-tight">{rankBy === "heat" ? "Hottest conversations" : "Most viral conversations"}</h2>
+          {rankSwitch}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {hottest.map((t, i) => <TopicCard key={t.id} topic={t} region={region} showNiche rank={i + 1} />)}
         </div>
@@ -261,9 +273,11 @@ function Overview({ scans, region, setNiche, missing, spiking }: {
   );
 }
 
-function NicheDetail({ scan, region, spiking }: { scan: NicheScan; region: RegionFilter; spiking: React.ReactNode }) {
+function NicheDetail({ scan, region, spiking, rankBy, rankSwitch }: {
+  scan: NicheScan; region: RegionFilter; spiking: React.ReactNode; rankBy: RankBy; rankSwitch: React.ReactNode;
+}) {
   const n = NICHE_BY_ID.get(scan.niche)!;
-  const topics = visibleTopics(scan, region);
+  const topics = visibleTopics(scan, region, rankBy);
   const { progress, run } = useScanRunner();
   const rows = volumeRows(scan, region);
   const communities = scan.communities
@@ -317,6 +331,7 @@ function NicheDetail({ scan, region, spiking }: { scan: NicheScan; region: Regio
         </details>
       )}
 
+      {topics.length > 1 && <div className="flex justify-end">{rankSwitch}</div>}
       {topics.length ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {topics.map((t, i) => <TopicCard key={t.id} topic={t} region={region} rank={i + 1} />)}
@@ -328,7 +343,7 @@ function NicheDetail({ scan, region, spiking }: { scan: NicheScan; region: Regio
       {spiking}
 
       <p className="text-center text-xs text-faint">
-        Grouped by {scan.model ?? "shared keywords"} · {scan.communities.length} communities read · <Link href="/sources" className="underline-offset-2 hover:underline">how this works</Link>
+        Grouped by {scan.model ?? "shared keywords"} · {scan.communities.length} communities read · <Link href="/settings" className="underline-offset-2 hover:underline">how this works</Link>
       </p>
     </div>
   );

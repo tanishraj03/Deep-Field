@@ -149,6 +149,8 @@ async function rss(url: string): Promise<RssEntry[]> {
 
 export interface CommunityRead {
   posts: Post[];
+  /** Every post fetched, before keeping the strongest — the scan's reach. */
+  read: number;
   /** Posts in the last 24h, from the full fetch — not just those kept. */
   fresh24h: number;
   via: "reddit-api" | "archive";
@@ -162,29 +164,34 @@ export interface CommunityRead {
 export async function readCommunity(sub: string, region: RegionCode): Promise<CommunityRead> {
   const dayAgo = Date.now() - 86_400_000;
   if (hasRedditApi()) {
-    const hot = await oauthListing(`/r/${sub}/hot?limit=60&raw_json=1`);
+    const hot = await oauthListing(`/r/${sub}/hot?limit=100&raw_json=1`);
     const posts = hot.map((d, i) => ({ ...fromListing(d, i + 1), region }));
     return {
       posts,
+      read: hot.length,
       fresh24h: hot.filter((d) => d.created_utc * 1000 >= dayAgo).length,
       via: "reddit-api",
     };
   }
 
-  const [fresh, mature] = await Promise.all([
+  // The archive returns at most 100 posts per request, so the measured week
+  // is read in two slices; a busy community fills both.
+  const [fresh, recent, older] = await Promise.all([
     arctic.searchPosts({ subreddit: sub, after: "36h", limit: 100 }),
-    arctic.searchPosts({ subreddit: sub, after: "8d", before: "36h", limit: 100 }),
+    arctic.searchPosts({ subreddit: sub, after: "4d", before: "36h", limit: 100 }),
+    arctic.searchPosts({ subreddit: sub, after: "8d", before: "4d", limit: 100 }).catch(() => [] as arctic.ArcticPost[]),
   ]);
   const freshPosts = fresh.map((p) => fromArctic(p, region));
-  const maturePosts = mature
+  const maturePosts = [...recent, ...older]
     .map((p) => fromArctic(p, region))
     .sort((a, b) => engagement(b) - engagement(a));
 
   return {
-    // Every measured post that drew any discussion, plus the newest fresh
+    // Every measured post that drew real discussion, plus the newest fresh
     // ones — fresh posts are how a conversation that started this morning
     // shows up at all.
-    posts: [...maturePosts.filter((p) => (p.comments ?? 0) + (p.score ?? 0) > 2).slice(0, 30), ...freshPosts.slice(0, 30)],
+    posts: [...maturePosts.filter((p) => (p.comments ?? 0) + (p.score ?? 0) > 2).slice(0, 80), ...freshPosts.slice(0, 40)],
+    read: fresh.length + recent.length + older.length,
     fresh24h: fresh.filter((p) => p.created_utc * 1000 >= dayAgo).length,
     via: "archive",
   };

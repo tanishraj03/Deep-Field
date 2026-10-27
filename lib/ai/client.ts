@@ -78,7 +78,7 @@ async function post(slot: ModelSlot, model: string, o: RequestOpts): Promise<Res
   };
   if (slot.provider === "openrouter") {
     headers["HTTP-Referer"] = "https://github.com/deep-field";
-    headers["X-Title"] = "Deep Field";
+    headers["X-Title"] = "DeepField";
   }
 
   const send = (b: Record<string, unknown>) => fetch(`${p.baseUrl}/chat/completions`, {

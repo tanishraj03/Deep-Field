@@ -43,7 +43,7 @@ const NAMED_ENTITIES: Record<string, string> = {
 };
 
 /** Decode numeric and named HTML entities. */
-function decodeEntities(s: string): string {
+export function decodeEntities(s: string): string {
   return s.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z][a-zA-Z0-9]*));/g, (m, dec, hex, name) => {
     if (dec) { const c = Number(dec); return c > 0 && c < 0x110000 ? String.fromCodePoint(c) : m; }
     if (hex) { const c = parseInt(hex, 16); return c > 0 && c < 0x110000 ? String.fromCodePoint(c) : m; }

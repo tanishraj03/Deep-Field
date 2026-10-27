@@ -1,8 +1,8 @@
-# Deep Field
+# DeepField
 
 **What is the internet talking about — in every niche, in India and globally — and what should we make content about?**
 
-Deep Field scouts Reddit, Hacker News, YouTube, news, Wikipedia, Google Trends, Bluesky and Mastodon, groups what it finds into *conversations*, measures how big each one is, and gives you an AI research assistant to dig into any of them.
+DeepField scouts Reddit, Hacker News, YouTube, news, Wikipedia, Google Trends, Bluesky and Mastodon, groups what it finds into *conversations*, measures how big each one is, and gives you an AI research assistant to dig into any of them.
 
 | Screen | What it answers |
 |---|---|
@@ -47,13 +47,18 @@ Free-tier model ids change often, so each entry lists candidates and the first o
 ## Where the numbers come from
 
 - **Reddit** — 158 communities across 20 niches, split India / Global (`lib/niches.ts`). Read through the [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift) archive because Reddit's JSON blocks anonymous clients and its RSS rate-limits within a few requests. Archive counts are accurate once a thread is ~36h old (checked against Reddit: 225 vs 218 comments); newer threads count as volume and are labelled. Set `REDDIT_CLIENT_ID/SECRET` to use Reddit's own API with live counts.
-- **Hacker News** (Algolia), **GDELT** (news articles per day, filterable to Indian publishers), **Wikipedia** pageviews (incl. most-read in India), **Google Trends** trending searches (IN/US), **Bluesky** and **Mastodon** trending — all keyless.
+- **Hacker News** (Algolia), **GDELT** and **Google News** (articles per topic, top stories sized by outlets), **Wikipedia** pageviews (incl. most-read in India), **Google Trends** trending searches (IN/US), **Bluesky** (trending and post search), **Mastodon** (trending tags and shared links) and **Lemmy** — all keyless.
+- **X** — trending in India and worldwide, read from getdaytrends.com's public tracker. X has no free read API and scraping X itself breaks its terms.
 - **YouTube** — trending per category and most-viewed uploads per topic. Free key: `YOUTUBE_API_KEY`.
-- X, Instagram and TikTok publish nothing comparable without paid access, so Explore links out to them rather than scraping.
+- **Instagram** — optional: top posts for a hashtag through Meta's official API with your own Business/Creator account (`INSTAGRAM_ACCESS_TOKEN`, `INSTAGRAM_USER_ID`). TikTok publishes nothing comparable without paid access, so Explore links out to it.
 
 Nothing is estimated: a number a platform didn't report is left blank.
 
-**Heat** (0–100) is one scale across all niches, computed from comments, upvotes, views, number of threads and communities, and velocity (threads in the last 24h), on log scales so one mega-thread can't drown out a conversation happening everywhere.
+**Heat** (0–100) is one scale across all niches: reaction (comments, upvotes, views) weighted most, plus number of threads and communities and velocity (threads in the last 24h), on log scales so one mega-thread can't drown out a conversation happening everywhere.
+
+**Virality** (0–100) is how fast a conversation is spreading: reactions (comments + upvotes/likes + views/100) per hour since its first post, plus how hard the average post lands.
+
+**Verdict** — every topic and Explore search gets *Make now*, *Worth testing* or *Skip*, cut from an opportunity score built on virality, heat, momentum, freshness and how crowded YouTube already is. In Explore the AI may move that score by at most 15 points, with reasons, so a fading or saturated topic can't be talked into "make now". Run `npx tsx scripts/score-report.ts` to see how the calls spread across the latest scans.
 
 ## Deploy
 

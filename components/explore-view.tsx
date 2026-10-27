@@ -11,10 +11,10 @@ import { PostRow } from "./post-row";
 import { useRegion } from "./region";
 import { SentimentBadge } from "./topic-card";
 import { AngleCard } from "./topic-view";
-import { Badge, Button, Card, Eyebrow, REGION_OPTIONS, RegionSplit, Segmented, Skeleton, SOURCE_META } from "./ui";
+import { Badge, Button, Card, Eyebrow, REGION_OPTIONS, RegionSplit, Segmented, Skeleton, SOURCE_META, VERDICT_META, ViralityChip } from "./ui";
 import { bestCommentByPost, TopComments, useDiscussion, VoicesPanel } from "./voices";
 
-const SCANNING = ["Reddit", "Hacker News", "YouTube", "News (GDELT)", "Wikipedia"];
+const SCANNING = ["Reddit", "Hacker News", "YouTube", "News", "Bluesky", "Lemmy", "Wikipedia"];
 
 export function ExploreView({ initialQuery, initialRegion, suggestions }: {
   initialQuery: string; initialRegion: RegionFilter | null; suggestions: string[];
@@ -143,7 +143,7 @@ function Scanning() {
   return (
     <Card className="p-6">
       <p className="text-sm font-medium">Reading the last week of conversation…</p>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-5">
+      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
         {SCANNING.map((s, i) => (
           <li key={s} className={cn("flex items-center gap-2 rounded-xl px-3 py-2 text-[0.8125rem] transition-colors",
             i < step ? "bg-hair/[0.05] text-ink" : "text-faint")}>
@@ -156,7 +156,9 @@ function Scanning() {
   );
 }
 
-const SOURCE_ORDER: SourceId[] = ["reddit", "hackernews", "news", "youtube", "wikipedia"];
+const SOURCE_ORDER: SourceId[] = ["reddit", "youtube", "instagram", "bluesky", "hackernews", "lemmy", "news", "wikipedia"];
+
+const UNIT: Partial<Record<SourceId, string>> = { wikipedia: "page views", news: "articles", youtube: "top videos", instagram: "top posts" };
 
 function Result({ result, insight, insightState, insightError, onRefresh, onRetryInsight }: {
   result: ExploreResult; insight: ExploreInsight | null; insightState: "idle" | "loading" | "error"; insightError: string | null;
@@ -182,6 +184,14 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
             <h2 className="mt-2 text-[1.5rem] font-semibold leading-tight tracking-tight">
               <span className="num">{result.totals.conversations.toLocaleString("en-US")}</span> conversations about “{result.query}”
             </h2>
+            {result.opportunity && (
+              <div className="mt-2 flex flex-wrap items-center gap-3" title={result.opportunity.signals.join(" · ")}>
+                <Badge tone={VERDICT_META[result.opportunity.call].tone}>{VERDICT_META[result.opportunity.call].label}</Badge>
+                <span className="num text-xs text-faint">opportunity {result.opportunity.score}/100</span>
+                <ViralityChip value={result.opportunity.virality} perHour={result.opportunity.perHour} />
+                <span className="text-xs text-muted">{result.opportunity.signals.slice(1, 3).join(" · ")}</span>
+              </div>
+            )}
             <p className="mt-1.5 text-sm text-muted">
               <span className="num">{compact(result.totals.comments)}</span> comments · <span className="num">{compact(result.totals.score)}</span> upvotes
               {result.totals.views > 0 && <> · <span className="num">{compact(result.totals.views)}</span> video views</>}
@@ -196,7 +206,7 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-hair/[0.08] sm:grid-cols-5">
+        <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-hair/[0.08] sm:grid-cols-4">
           {sources.map((s) => (
             <div key={s.source} className="bg-surface p-3.5">
               <p className="flex items-center gap-1.5 text-xs text-muted">
@@ -206,7 +216,7 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
                 <>
                   <p className="num mt-1.5 text-xl font-semibold">{compact(s.total)}{s.capped ? "+" : ""}</p>
                   <p className="mt-0.5 line-clamp-2 text-[0.6875rem] text-faint">
-                    {s.source === "wikipedia" ? "page views" : s.source === "news" ? "articles" : s.source === "youtube" ? "top videos" : "posts"} · {s.note ?? s.window}
+                    {UNIT[s.source] ?? "posts"} · {s.note ?? s.window}
                   </p>
                 </>
               ) : (
@@ -334,7 +344,7 @@ function Insight({ insight, state, error, onRetry }: {
         {insight && state === "idle" && (
           <div className="space-y-5 duration-500 animate-in fade-in">
             <p className="text-[0.95rem] leading-relaxed">{insight.summary}</p>
-            {insight.verdict && (
+            {insight.decision ? <Decision insight={insight} /> : insight.verdict && (
               <div className="rounded-xl bg-accent/[0.07] p-3.5 text-[0.875rem] leading-relaxed">
                 <span className="font-semibold text-accent">Verdict · </span>{insight.verdict}
               </div>
@@ -372,5 +382,32 @@ function Insight({ insight, state, error, onRetry }: {
         )}
         {!insight && state === "idle" && <Badge tone="outline">No conversation to interpret</Badge>}
     </Card>
+  );
+}
+
+/** The call: make / test / skip, its score, and the reasons for and against. */
+function Decision({ insight }: { insight: ExploreInsight }) {
+  const d = insight.decision!;
+  const tone = { make: "bg-rise/[0.07]", test: "bg-ember/[0.07]", skip: "bg-hair/[0.05]" }[d.call];
+  const label = { make: "text-rise", test: "text-ember", skip: "text-ink" }[d.call];
+  return (
+    <div className={cn("rounded-xl p-3.5 text-[0.875rem] leading-relaxed", tone)}>
+      <p>
+        <span className={cn("font-semibold", label)}>{VERDICT_META[d.call].label}</span>
+        <span className="num ml-2 text-xs text-faint">{d.score}/100</span>
+      </p>
+      {insight.verdict && <p className="mt-1">{insight.verdict}</p>}
+      {(d.reasons.length > 0 || d.risks.length > 0) && (
+        <div className="mt-2 grid gap-3 text-[0.8125rem] sm:grid-cols-2">
+          {d.reasons.length > 0 && (
+            <div><p className="eyebrow mb-1">For</p><ul className="space-y-1 text-muted">{d.reasons.map((x) => <li key={x}>· {x}</li>)}</ul></div>
+          )}
+          {d.risks.length > 0 && (
+            <div><p className="eyebrow mb-1">Against</p><ul className="space-y-1 text-muted">{d.risks.map((x) => <li key={x}>· {x}</li>)}</ul></div>
+          )}
+        </div>
+      )}
+      {d.gap && <p className="mt-2 text-[0.8125rem]"><span className="font-medium">Gap · </span><span className="text-muted">{d.gap}</span></p>}
+    </div>
   );
 }

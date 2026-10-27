@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Check, Loader2, MessageSquarePlus, Search, Sparkles, Square, Trash2, TrendingUp, X, BookOpen, MessagesSquare } from "lucide-react";
+import { ArrowUp, Check, Copy, Download, Loader2, MessageSquarePlus, Search, Share, Sparkles, Square, Trash2, TrendingUp, X, BookOpen, MessagesSquare } from "lucide-react";
 import type { PublicModel } from "@/lib/ai/models";
 import type { RegionFilter } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -208,9 +208,12 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel }
 
       {/* Conversation */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between border-b px-4 py-2.5 xl:hidden">
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
           <span className="truncate text-sm font-medium">{active?.title ?? "Assistant"}</span>
-          <button onClick={newChat} className="flex items-center gap-1.5 text-xs text-muted hover:text-ink"><MessageSquarePlus className="h-4 w-4" />New</button>
+          <div className="flex shrink-0 items-center gap-3">
+            {active && (active.messages.length > 0 || active.context) && <ExportButton chat={active} />}
+            <button onClick={newChat} className="flex items-center gap-1.5 text-xs text-muted hover:text-ink xl:hidden"><MessageSquarePlus className="h-4 w-4" />New</button>
+          </div>
         </div>
 
         <div ref={scroller} className="flex-1 overflow-y-auto">
@@ -262,6 +265,72 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel }
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The chat and everything behind it, as Markdown another AI can pick up from. */
+function exportMarkdown(chat: Chat, context: string): string {
+  const transcript = chat.messages.map((m) => {
+    if (m.role === "user") return `### Me\n${m.content}`;
+    const tools = (m.tools ?? []).filter((t) => t.status === "done").map((t) => `_(looked up: ${t.name.replace(/_/g, " ")}${t.summary ? ` — ${t.summary}` : ""})_`).join("\n");
+    return `### DeepField assistant\n${tools ? `${tools}\n\n` : ""}${m.content}${m.error ? `\n\n_(error: ${m.error})_` : ""}`;
+  }).join("\n\n");
+  return [
+    `<!-- Exported from DeepField on ${new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} -->`,
+    "I'm researching what to make content about. Below is the research DeepField collected" +
+      `${chat.contextLabel ? ` on ${chat.contextLabel}` : ""} — real counts, links and comments from Reddit, YouTube, X trends, news and more — followed by my conversation so far. Read it all, then continue helping me from where we left off. Treat the numbers as measured data; flag anything you think is missing.`,
+    context ? `---\n\n${context}` : "",
+    transcript ? `---\n\n## Conversation so far\n\n${transcript}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+function ExportButton({ chat }: { chat: Chat }) {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<"idle" | "working" | "copied" | "error">("idle");
+  const build = async () => {
+    const res = await fetch("/api/export", { method: "POST", body: JSON.stringify({ context: chat.context }) });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    return exportMarkdown(chat, json.markdown);
+  };
+  const run = async (how: "copy" | "download") => {
+    setState("working");
+    try {
+      const md = await build();
+      if (how === "copy") {
+        await navigator.clipboard.writeText(md);
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+        a.download = `deepfield-${(chat.title || "chat").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50)}.md`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+      setState("copied");
+      setTimeout(() => { setState("idle"); setOpen(false); }, 1400);
+    } catch {
+      setState("error");
+    }
+  };
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-xs text-muted hover:text-ink" title="Export this chat and its research for another AI">
+        <Share className="h-3.5 w-3.5" />Export
+      </button>
+      {open && (
+        <div className="card absolute right-0 top-7 z-30 w-60 p-1.5 shadow-lg">
+          <p className="px-2.5 pb-1.5 pt-1 text-[0.6875rem] leading-snug text-faint">The research, numbers, links, top comments and this conversation — ready to paste into ChatGPT, Claude or Gemini.</p>
+          <button onClick={() => run("copy")} disabled={state === "working"} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.8125rem] hover:bg-hair/[0.05]">
+            {state === "working" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "copied" ? <Check className="h-3.5 w-3.5 text-rise" /> : <Copy className="h-3.5 w-3.5" />}
+            {state === "copied" ? "Done" : "Copy for another AI"}
+          </button>
+          <button onClick={() => run("download")} disabled={state === "working"} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.8125rem] hover:bg-hair/[0.05]">
+            <Download className="h-3.5 w-3.5" />Download .md
+          </button>
+          {state === "error" && <p className="px-2.5 py-1 text-xs text-fall">Couldn&apos;t build the export. Try again.</p>}
+        </div>
+      )}
     </div>
   );
 }

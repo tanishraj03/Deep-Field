@@ -17,7 +17,7 @@ export const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "get_trending",
-      description: "The conversations Deep Field's latest scan found, ranked by heat, with real post/comment counts, summaries and top threads. Use for 'what is trending', 'what is India talking about', or to compare niches.",
+      description: "The conversations DeepField's latest scan found, ranked by heat, with real post/comment/view counts, virality (reactions per hour), a make/test/skip verdict with reasons, summaries and top threads. Use for 'what is trending', 'what should I make', 'what is India talking about', or to compare niches.",
       parameters: {
         type: "object",
         properties: {
@@ -32,7 +32,7 @@ export const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "research_topic",
-      description: "Search the past week of conversation about any topic across Reddit, Hacker News, YouTube, news (GDELT) and Wikipedia. Returns how many conversations there are, per source and per day, the India/global split, the communities discussing it and the top threads. Takes 10-30 seconds.",
+      description: "Search the past week of conversation about any topic across Reddit, YouTube, Bluesky, Hacker News, Lemmy, news (GDELT and Google News), Wikipedia and Instagram (when connected). Returns how many conversations there are, per source and per day, a computed opportunity score with virality, momentum and saturation, the India/global split, the communities and the top threads. Takes 10-30 seconds.",
       parameters: {
         type: "object",
         properties: {
@@ -92,6 +92,8 @@ function topicBrief(t: Topic, scan: NicheScan, region: RegionFilter) {
     niche: nicheLabel(t.niche),
     title: t.title,
     heat: t.heat,
+    virality: `${t.virality}/100 (~${compact(t.metrics.perHour)} reactions an hour)`,
+    verdict: t.verdict ? `${t.verdict.call} (${t.verdict.score}/100): ${t.verdict.reasons.join("; ")}` : undefined,
     trend: t.isNew ? "new" : t.heatDelta === null ? "—" : t.heatDelta > 0 ? `rising (+${t.heatDelta})` : t.heatDelta < 0 ? `cooling (${t.heatDelta})` : "steady",
     summary: t.summary,
     whyNow: t.whyNow,
@@ -135,6 +137,7 @@ async function researchTopic(args: { query: string; region?: RegionFilter }) {
     query: r.query,
     region: r.region,
     totalConversations: r.totals.conversations,
+    opportunity: r.opportunity ? `${r.opportunity.call} (${r.opportunity.score}/100), virality ${r.opportunity.virality}/100: ${r.opportunity.signals.join("; ")}` : undefined,
     comments: r.totals.comments,
     upvotes: r.totals.score,
     videoViews: r.totals.views,

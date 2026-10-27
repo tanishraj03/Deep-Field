@@ -8,7 +8,7 @@ import { ThemeProvider } from "@/components/theme";
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: { default: "Deep Field", template: "%s · Deep Field" },
+  title: { default: "DeepField", template: "%s · DeepField" },
   description: "What the internet is talking about, in every niche, in India and globally — and what to make content about.",
 };
 

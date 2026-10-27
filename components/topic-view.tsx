@@ -12,7 +12,7 @@ import { RankBars } from "./charts";
 import { PostRow } from "./post-row";
 import { useRegion } from "./region";
 import { SentimentBadge } from "./topic-card";
-import { Badge, Button, Card, Delta, Eyebrow, Heat, REGION_OPTIONS, RegionSplit, Segmented, Stat } from "./ui";
+import { Badge, Button, Card, Delta, Eyebrow, Heat, REGION_OPTIONS, RegionSplit, Segmented, Stat, VERDICT_META, VerdictBadge } from "./ui";
 import { bestCommentByPost, TopComments, useDiscussion, VoicesPanel } from "./voices";
 
 export function AngleCard({ angle }: { angle: ContentAngle }) {
@@ -44,7 +44,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
   const discussion = useDiscussion({ topic: `${topic.niche}:${topic.id}` });
   const best = bestCommentByPost(discussion.data);
   const n = NICHE_BY_ID.get(topic.niche);
-  const { metrics, heat } = topicIn(topic, region);
+  const { metrics, heat, virality } = topicIn(topic, region);
   const posts = postsFor(topic, scan, region);
   const communities = new Map<string, { label: string; value: number; region: "IN" | "GLOBAL" }>();
   for (const p of postsFor(topic, scan, "ALL")) {
@@ -70,14 +70,36 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
               <SentimentBadge s={topic.sentiment} />
               <Delta isNew={topic.isNew} delta={topic.heatDelta} />
               {topic.groupedBy === "rules" && <Badge tone="outline">grouped by keyword</Badge>}
+              <VerdictBadge verdict={topic.verdict} />
             </div>
             <h1 className="mt-3 text-[1.625rem] font-semibold leading-tight tracking-tight">{topic.title}</h1>
             {topic.summary && <p className="mt-3 text-[0.95rem] leading-relaxed text-ink/85">{topic.summary}</p>}
             {topic.whyNow && <p className="mt-2 text-sm text-muted"><span className="font-medium text-ink/80">Why now: </span>{topic.whyNow}</p>}
+            {topic.verdict && (
+              <div className="mt-4 rounded-xl bg-hair/[0.04] p-3.5">
+                <p className="text-sm">
+                  <span className={`font-semibold ${{ make: "text-rise", test: "text-ember", skip: "text-muted" }[topic.verdict.call]}`}>
+                    {VERDICT_META[topic.verdict.call].label}
+                  </span>
+                  <span className="num ml-2 text-xs text-faint">{topic.verdict.score}/100</span>
+                </p>
+                {topic.verdict.reasons.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5 text-[0.8125rem] text-muted">
+                    {topic.verdict.reasons.map((r) => <li key={r}>· {r}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <span className="eyebrow">Heat</span>
-            <Heat value={heat} size="lg" />
+          <div className="flex shrink-0 gap-6">
+            <div className="flex flex-col items-end gap-1">
+              <span className="eyebrow">Heat</span>
+              <Heat value={heat} size="lg" />
+            </div>
+            <div className="flex flex-col items-end gap-1" title={`~${compact(metrics.perHour)} reactions an hour`}>
+              <span className="eyebrow">Virality</span>
+              <Heat value={virality ?? 0} size="lg" />
+            </div>
           </div>
         </div>
 
@@ -86,7 +108,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
           <Stat label="Comments" value={compact(metrics.comments)} />
           <Stat label="Upvotes" value={compact(metrics.score)} />
           {metrics.views > 0 ? <Stat label="Video views" value={compact(metrics.views)} /> : <Stat label="Communities" value={metrics.communities} />}
-          <Stat label="Last 24h" value={metrics.last24h} sub="new threads" />
+          <Stat label="Reactions / hour" value={compact(metrics.perHour)} sub={`${metrics.last24h} new threads in 24h`} />
           <div className="col-span-2 sm:col-span-1 lg:col-span-1">
             <p className="eyebrow mb-2">India vs global</p>
             <RegionSplit IN={topic.metrics.postsIN} GLOBAL={topic.metrics.postsGLOBAL} />

@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowDownRight, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
-import type { RegionFilter, SourceId } from "@/lib/types";
+import { ArrowDownRight, ArrowUpRight, Loader2, Sparkles, Zap } from "lucide-react";
+import type { RegionFilter, SourceId, TopicVerdict } from "@/lib/types";
 import { cn, compact } from "@/lib/utils";
 
 export function Card({ className, children, hover, ...rest }: React.HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
@@ -196,6 +196,9 @@ export const SOURCE_META: Record<SourceId, { label: string; short: string; color
   "google-trends": { label: "Google Trends", short: "Trends", color: "#4285F4" },
   bluesky: { label: "Bluesky", short: "Bluesky", color: "#1185FE" },
   mastodon: { label: "Mastodon", short: "Mastodon", color: "#6364FF" },
+  x: { label: "X", short: "X", color: "#71767B" },
+  lemmy: { label: "Lemmy", short: "Lemmy", color: "#00BC8C" },
+  instagram: { label: "Instagram", short: "Insta", color: "#E1306C" },
 };
 
 /** Source names are always written out; the dot is decoration, never the only cue. */
@@ -236,5 +239,35 @@ export function EmptyState({ icon: Icon, title, body, action }: {
       <div className="mt-1.5 max-w-md text-sm text-muted">{body}</div>
       {action && <div className="mt-5">{action}</div>}
     </Card>
+  );
+}
+
+export const VERDICT_META: Record<TopicVerdict["call"], { label: string; tone: "rise" | "ember" | "neutral" }> = {
+  make: { label: "Make now", tone: "rise" },
+  test: { label: "Worth testing", tone: "ember" },
+  skip: { label: "Skip", tone: "neutral" },
+};
+
+/** The content call, with its reasons on hover. */
+export function VerdictBadge({ verdict }: { verdict?: TopicVerdict }) {
+  if (!verdict) return null;
+  const m = VERDICT_META[verdict.call];
+  return (
+    <span title={verdict.reasons.join(" · ")}>
+      <Badge tone={m.tone}>{m.label}</Badge>
+    </span>
+  );
+}
+
+/** Virality as a compact chip: the number, and the pace behind it on hover. */
+export function ViralityChip({ value, perHour }: { value: number | undefined; perHour?: number }) {
+  if (value === undefined) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted"
+      title={`Virality ${value}/100${perHour !== undefined ? ` · ~${compact(perHour)} reactions an hour` : ""}`}>
+      <Zap className={cn("h-3.5 w-3.5", value >= 70 ? "text-ember" : "text-faint")} strokeWidth={2} />
+      <span className={cn("num font-medium", value >= 70 ? "text-ember" : "text-ink/80")}>{value}</span>
+      <span className="sr-only">virality</span>
+    </span>
   );
 }

@@ -1,15 +1,19 @@
 import type { Comment, Discussion, NicheScan, Post, RegionFilter, Topic, TopicMetrics } from "./types";
 
 /** What a topic looks like through the region filter. */
-export function topicIn(t: Topic, region: RegionFilter): { metrics: TopicMetrics; heat: number } {
-  if (region === "ALL" || !t.byRegion) return { metrics: t.metrics, heat: t.heat };
+export function topicIn(t: Topic, region: RegionFilter): { metrics: TopicMetrics; heat: number; virality: number } {
+  if (region === "ALL" || !t.byRegion) return { metrics: t.metrics, heat: t.heat, virality: t.virality };
   return t.byRegion[region];
 }
 
-export function visibleTopics(scan: NicheScan, region: RegionFilter): Topic[] {
-  return scan.topics
-    .filter((t) => topicIn(t, region).metrics.posts > 0)
-    .sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat);
+export type RankBy = "heat" | "virality";
+
+export function visibleTopics(scan: NicheScan, region: RegionFilter, rankBy: RankBy = "heat"): Topic[] {
+  return rankTopics(scan.topics.filter((t) => topicIn(t, region).metrics.posts > 0), region, rankBy);
+}
+
+export function rankTopics(topics: Topic[], region: RegionFilter, rankBy: RankBy = "heat"): Topic[] {
+  return [...topics].sort((a, b) => (topicIn(b, region)[rankBy] ?? 0) - (topicIn(a, region)[rankBy] ?? 0));
 }
 
 export function postsFor(t: Topic, scan: Pick<NicheScan, "posts">, region: RegionFilter): Post[] {
