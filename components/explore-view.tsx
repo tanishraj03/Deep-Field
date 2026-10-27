@@ -184,14 +184,22 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
             <h2 className="mt-2 text-[1.5rem] font-semibold leading-tight tracking-tight">
               <span className="num">{(result.totals.mentions ?? result.totals.conversations).toLocaleString("en-US")}</span> mentions of “{result.query}”
             </h2>
-            {result.opportunity && (
+            {result.opportunity && (() => {
+              // One verdict on screen: the numbers-only call while the AI is
+              // reading, then its final call, which the decision box explains.
+              const final = insight?.decision;
+              const call = final?.call ?? result.opportunity.call;
+              return (
               <div className="mt-2 flex flex-wrap items-center gap-3" title={result.opportunity.signals.join(" · ")}>
-                <Badge tone={VERDICT_META[result.opportunity.call].tone}>{VERDICT_META[result.opportunity.call].label}</Badge>
-                <span className="num text-xs text-faint">opportunity {result.opportunity.score}/100</span>
+                <Badge tone={VERDICT_META[call].tone}>{VERDICT_META[call].label}</Badge>
+                <span className="num text-xs text-faint">
+                  {final ? `${final.score}/100` : insightState === "loading" ? `${result.opportunity.score}/100 from the numbers · reading the posts…` : `${result.opportunity.score}/100 from the numbers`}
+                </span>
                 <ViralityChip value={result.opportunity.virality} perHour={result.opportunity.perHour} />
                 <span className="text-xs text-muted">{result.opportunity.signals.slice(1, 3).join(" · ")}</span>
               </div>
-            )}
+              );
+            })()}
             <p className="mt-1.5 text-sm text-muted">
               <span className="num">{compact(result.totals.conversations)}</span> posts, videos and articles · <span className="num">{compact(result.totals.comments)}</span> comments · <span className="num">{compact(result.totals.score)}</span> upvotes
               {result.totals.views > 0 && <> · <span className="num">{compact(result.totals.views)}</span> video views</>}
@@ -395,6 +403,11 @@ function Decision({ insight }: { insight: ExploreInsight }) {
       <p>
         <span className={cn("font-semibold", label)}>{VERDICT_META[d.call].label}</span>
         <span className="num ml-2 text-xs text-faint">{d.score}/100</span>
+        {d.base !== undefined && d.base !== d.score && (
+          <span className="ml-2 text-xs text-faint">
+            · from the numbers {d.base}, {d.score > d.base ? "raised" : "lowered"} to {d.score} after reading the posts
+          </span>
+        )}
       </p>
       {insight.verdict && <p className="mt-1">{insight.verdict}</p>}
       {(d.reasons.length > 0 || d.risks.length > 0) && (

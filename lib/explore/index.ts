@@ -349,6 +349,7 @@ function decisionOf(
   return {
     call: callOf(score),
     score,
+    base: computed,
     reasons: (d?.reasons ?? []).map(String).filter(Boolean).slice(0, 3),
     risks: (d?.risks ?? []).map(String).filter(Boolean).slice(0, 2),
     gap: String(d?.gap ?? ""),

@@ -71,6 +71,7 @@ How to make the call. You are paid to protect the creator's time, not to encoura
 - Most topics are "test" or "skip". A lot of posts is not the same as demand; low reaction per conversation means people are not engaging.
 - Never call something "highly worth it" because it is popular in general. Crowded topics need a sharp gap or they are a "skip".
 - The headline must match the call. A "skip" says skip.
+- The OPPORTUNITY score is an input for your decision only. Never mention it, or "the computed score", in the summary, threads or anywhere else; describe the conversation itself.
 
 Style: never use em dashes; write with commas, colons or full stops instead.`;
 

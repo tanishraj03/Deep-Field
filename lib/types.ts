@@ -221,7 +221,8 @@ export interface ExploreInsight {
   angles: ContentAngle[];
   /** One-line headline of the decision, kept for older cached insights. */
   verdict: string;
-  decision?: { call: TopicVerdict["call"]; score: number; reasons: string[]; risks: string[]; gap: string };
+  /** The final call. `base` is the score from the numbers alone, before the model read the posts. */
+  decision?: { call: TopicVerdict["call"]; score: number; base?: number; reasons: string[]; risks: string[]; gap: string };
   model: string;
 }
 
