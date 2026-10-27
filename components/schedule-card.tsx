@@ -38,9 +38,9 @@ export function ScheduleCard({ initial, initialNext }: { initial: Schedule; init
         </span>
         <div>
           <p className="font-medium">Daily scan</p>
-          <p className="mt-0.5 text-sm text-muted">
-            Every niche and the cross-internet signals, once a day.{" "}
-            <span className="text-ink/80">Next: {next}</span>
+          <p className="mt-0.5 text-sm text-muted">Every niche and the cross-internet signals, once a day.</p>
+          <p className="mt-1 text-xs text-faint">
+            Next: <span className="text-muted">{next}</span>
             {s.lastRunAt && <> · last ran {relativeTime(s.lastRunAt)}</>}
           </p>
         </div>
@@ -61,9 +61,10 @@ export function ScheduleCard({ initial, initialNext }: { initial: Schedule; init
           aria-checked={s.enabled}
           aria-label="Automatic daily scan"
           onClick={() => save({ enabled: !s.enabled })}
-          className={cn("relative h-6 w-11 shrink-0 rounded-pill transition-colors", s.enabled ? "bg-rise" : "bg-hair/20")}
+          className={cn("relative h-6 w-11 shrink-0 rounded-pill p-0 transition-colors", s.enabled ? "bg-rise" : "bg-hair/20")}
         >
-          <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform", s.enabled ? "translate-x-[22px]" : "translate-x-0.5")} />
+          {/* Pinned left: a button centres its content, which pushed the knob off the track. */}
+          <span className={cn("absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform", s.enabled ? "translate-x-5" : "translate-x-0")} />
         </button>
         <span className="w-4">
           {state === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}

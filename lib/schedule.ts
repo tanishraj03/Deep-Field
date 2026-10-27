@@ -59,7 +59,7 @@ export function nextRun(s: Schedule, at = Date.now()): string {
   const ranToday = s.lastRun === now.date;
   const label = `${((s.hour + 11) % 12) + 1}:00 ${s.hour < 12 ? "AM" : "PM"} IST`;
   if (!s.enabled) return "Off";
-  if (today) return `Today at ${label}`;
-  if (!ranToday) return `At the next hourly check — today's ${label} scan hasn't run yet`;
-  return `Tomorrow at ${label}`;
+  if (today) return `today at ${label}`;
+  if (!ranToday) return `next hourly check (today's ${label} scan is pending)`;
+  return `tomorrow at ${label}`;
 }
