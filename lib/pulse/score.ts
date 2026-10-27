@@ -1,5 +1,5 @@
 import type { NicheScan, Post, SourceId, Topic, TopicMetrics, TopicVerdict } from "@/lib/types";
-import { compact } from "@/lib/utils";
+import { compact, noEmDash } from "@/lib/utils";
 import { hash, jaccard, terms } from "@/lib/utils";
 import type { Draft } from "./cluster";
 
@@ -38,8 +38,8 @@ export function metricsFor(posts: Post[], now = Date.now()): TopicMetrics {
  * Heat, 0–100, on one absolute scale so topics compare across niches: how big
  * the conversation is and how much it is moving.
  *
- * Inputs are only things the platforms reported. Reaction — comments,
- * upvotes/likes and views — carries most of the weight, because that is what
+ * Inputs are only things the platforms reported. Reaction, comments,
+ * upvotes/likes and views, carries most of the weight, because that is what
  * decides whether content on it lands; breadth (posts, communities) and
  * velocity (posts in the last day) add to it. Logs keep a single mega-thread
  * from drowning out a conversation happening everywhere at once.
@@ -60,7 +60,7 @@ export function heatOf(m: TopicMetrics, posts: Post[]): number {
 /**
  * Virality, 0–100: not how much is being said but how fast it is spreading.
  * Mostly engagement per hour since the first post, plus how hard the average
- * post lands — one thread pulling thousands of reactions is viral even alone.
+ * post lands, one thread pulling thousands of reactions is viral even alone.
  * Roughly: 10 reactions/hour ≈ 35, 100/hour ≈ 55, 1,000/hour ≈ 75, 10,000+ ≈ 90.
  */
 export function viralityOf(m: Pick<TopicMetrics, "posts" | "perHour" | "engagement">): number {
@@ -69,7 +69,7 @@ export function viralityOf(m: Pick<TopicMetrics, "posts" | "perHour" | "engageme
   return Math.round(100 * (1 - Math.exp(-raw / 4.4)));
 }
 
-/** Make / test / skip from a 0–100 opportunity score — one cut for every screen. */
+/** Make / test / skip from a 0–100 opportunity score, one cut for every screen. */
 export const callOf = (score: number): TopicVerdict["call"] => (score >= 62 ? "make" : score >= 42 ? "test" : "skip");
 
 /**
@@ -86,7 +86,7 @@ export function verdictOf(t: Pick<Topic, "heat" | "virality" | "heatDelta" | "is
   else if (m.perHour < 20) reasons.push({ w: 2, text: `Slow reaction: under 20 interactions an hour` });
   else reasons.push({ w: 0, text: `~${compact(m.perHour)} reactions an hour` });
 
-  // "New" is weak evidence — a re-scan can rename a topic — so it only helps
+  // "New" is weak evidence, a re-scan can rename a topic, so it only helps
   // when fresh threads back it up.
   if (t.isNew && t.virality >= 45 && m.last24h >= 2) { score += 4; reasons.push({ w: 2, text: "New since the last scan, with fresh threads today" }); }
   else if (t.heatDelta !== null && t.heatDelta >= 5) { score += 8; reasons.push({ w: 2, text: `Rising: heat up ${t.heatDelta} since the last scan` }); }
@@ -134,7 +134,12 @@ export function rescore(scan: NicheScan): NicheScan {
     const metrics = metricsFor(posts, now);
     const heat = heatOf(metrics, posts);
     const virality = viralityOf(metrics);
-    const scored = { ...t, metrics, heat, virality };
+    // Text written before the no-em-dash rule is cleaned as it is read.
+    const scored = {
+      ...t, metrics, heat, virality,
+      title: noEmDash(t.title), summary: noEmDash(t.summary), whyNow: noEmDash(t.whyNow),
+      questions: t.questions.map(noEmDash), angles: t.angles.map((a) => ({ ...a, hook: noEmDash(a.hook) })),
+    };
     return {
       ...scored,
       verdict: verdictOf(scored, posts),

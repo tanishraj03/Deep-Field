@@ -10,9 +10,9 @@ import { get, SourceError } from "./http";
 /**
  * Reddit, read three ways in order of preference:
  *
- *  1. Reddit's own API, when REDDIT_CLIENT_ID/SECRET are set — live counts.
- *  2. The Arctic Shift archive — keyless and reliable; counts settle at ~36h.
- *  3. Reddit's public RSS — Reddit's own ranking and sitewide search, but no
+ *  1. Reddit's own API, when REDDIT_CLIENT_ID/SECRET are set, live counts.
+ *  2. The Arctic Shift archive, keyless and reliable; counts settle at ~36h.
+ *  3. Reddit's public RSS, Reddit's own ranking and sitewide search, but no
  *     counts, and it rate-limits quickly. Used where ranking is the point.
  */
 
@@ -149,9 +149,9 @@ async function rss(url: string): Promise<RssEntry[]> {
 
 export interface CommunityRead {
   posts: Post[];
-  /** Every post fetched, before keeping the strongest — the scan's reach. */
+  /** Every post fetched, before keeping the strongest, the scan's reach. */
   read: number;
-  /** Posts in the last 24h, from the full fetch — not just those kept. */
+  /** Posts in the last 24h, from the full fetch, not just those kept. */
   fresh24h: number;
   via: "reddit-api" | "archive";
 }
@@ -200,7 +200,7 @@ export async function readCommunity(sub: string, region: RegionCode, tier: "core
 
   return {
     // Every measured post that drew real discussion, plus the newest fresh
-    // ones — fresh posts are how a conversation that started this morning
+    // ones, fresh posts are how a conversation that started this morning
     // shows up at all.
     posts: [...maturePosts.filter((p) => (p.comments ?? 0) + (p.score ?? 0) > 2).slice(0, 80), ...freshPosts.slice(0, 40)],
     read: fresh.length + recent.length + older.length,
@@ -272,7 +272,7 @@ export async function searchReddit(
     return { posts, via: "rss" };
   } catch (e) {
     // Reddit refused the search. Fall back to the archive, which can only
-    // search inside named communities — so this is a narrower read, and says so.
+    // search inside named communities, so this is a narrower read, and says so.
     // The archive's keyword search times out beyond about five days.
     const subs = fallbackSubs.slice(0, 8);
     const results = await pool(subs, 3, (s) =>

@@ -11,7 +11,7 @@ export type SourceId =
   | "google-trends" | "bluesky" | "mastodon" | "x" | "lemmy" | "instagram";
 
 /**
- * One conversation as it exists on its platform — a Reddit thread, an HN
+ * One conversation as it exists on its platform, a Reddit thread, an HN
  * story, a video. Every number on it was reported by the platform; nothing
  * is estimated. A number we do not have is undefined, never zero.
  */
@@ -62,14 +62,14 @@ export interface Topic {
   virality: number;
   /** Should a creator make something on this now? */
   verdict: TopicVerdict;
-  /** The same numbers counting only India's or only Global's posts — what the region filter shows. */
+  /** The same numbers counting only India's or only Global's posts, what the region filter shows. */
   byRegion: Record<RegionCode, { metrics: TopicMetrics; heat: number; virality: number }>;
   /** Change against the closest topic in the previous scan; null if new. */
   heatDelta: number | null;
   isNew: boolean;
   /** "ai" when a model grouped it, "rules" when keyword overlap did. */
   groupedBy: "ai" | "rules";
-  /** 2-4 words people use when they mention it — what web mentions are counted by. */
+  /** 2-4 words people use when they mention it, what web mentions are counted by. */
   query?: string;
   /** Mentions beyond the grouped threads, counted by each platform's search over the last 7 days. */
   web?: WebMentions;
@@ -98,7 +98,7 @@ export interface TopicMetrics {
   views: number;
   /** Comments + upvotes/likes + views/100: one number for "how much reaction". */
   engagement: number;
-  /** Engagement per hour since the first post — the velocity behind virality. */
+  /** Engagement per hour since the first post, the velocity behind virality. */
   perHour: number;
   /** Every post and comment in the grouped threads: each one is somebody talking about it. */
   mentions: number;
@@ -106,7 +106,7 @@ export interface TopicMetrics {
   /** Posts in Indian communities, for the India/Global split. */
   postsIN: number;
   postsGLOBAL: number;
-  /** Posts younger than 24h — the velocity signal. */
+  /** Posts younger than 24h, the velocity signal. */
   last24h: number;
   sources: Partial<Record<SourceId, number>>;
 }
@@ -135,7 +135,7 @@ export interface NicheScan {
   communities: CommunityVolume[];
   /** Total posts across the niche's communities, per day, oldest first. */
   dailyVolume: { date: string; IN: number; GLOBAL: number }[];
-  /** When community volume was last read — it changes daily, so it is reused between scans. */
+  /** When community volume was last read, it changes daily, so it is reused between scans. */
   volumeAt: string | null;
   sources: SourceRun[];
   /** Every post fetched this scan, before keeping the strongest. */

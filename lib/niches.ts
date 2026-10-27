@@ -1,5 +1,5 @@
 /**
- * The niche catalogue — the one place that decides what "a niche" is.
+ * The niche catalogue, the one place that decides what "a niche" is.
  *
  * Each niche is a set of communities split by geography. India and Global are
  * read separately so every conversation can say where it is happening, which
@@ -8,7 +8,7 @@
  *
  * Subreddits were checked against live activity (scripts/check-niches.ts).
  * Dead or private communities read as zero volume, so a stale entry here does
- * not break anything — it just contributes nothing. Re-run the check after
+ * not break anything, it just contributes nothing. Re-run the check after
  * editing.
  */
 
@@ -25,7 +25,7 @@ export interface Niche {
   subreddits: Record<RegionCode, string[]>;
   /** The busiest ~16, read in depth; the rest get one lighter read each scan. */
   core: Record<RegionCode, string[]>;
-  /** YouTube mostPopular videoCategoryId, when the niche maps to one. Travel (19) and Education (27) have no trending chart — YouTube answers 404. */
+  /** YouTube mostPopular videoCategoryId, when the niche maps to one. Travel (19) and Education (27) have no trending chart, YouTube answers 404. */
   youtubeCategory?: string;
   /** Read Hacker News into this niche. */
   hackerNews?: boolean;
@@ -274,7 +274,7 @@ function withCommunities(n: Omit<Niche, "core">): Niche {
 
 export const NICHES: Niche[] = CURATED.map(withCommunities);
 
-/** The hand-picked communities alone, before discovery — what discovery starts from. */
+/** The hand-picked communities alone, before discovery, what discovery starts from. */
 export const curatedSubreddits = (id: string) => CURATED.find((n) => n.id === id)?.subreddits ?? { IN: [], GLOBAL: [] };
 
 export const NICHE_BY_ID = new Map(NICHES.map((n) => [n.id, n]));
@@ -284,7 +284,7 @@ export function nicheLabel(id: string): string {
 }
 
 /**
- * Communities that are about India even when they are not in the list above —
+ * Communities that are about India even when they are not in the list above , 
  * used to attribute region to search results from anywhere on Reddit.
  */
 const INDIAN_SUBS = new Set(

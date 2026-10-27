@@ -1,7 +1,7 @@
 // Every environment variable the app reads, in one place.
 // Every key is optional. With none set the app still scans Reddit (via the
 // Arctic Shift archive), Hacker News, news volume (GDELT), Wikipedia, Google
-// Trends, Bluesky and Mastodon — AI interpretation and YouTube need keys.
+// Trends, Bluesky and Mastodon, AI interpretation and YouTube need keys.
 
 function num(v: string | undefined, dflt: number) {
   const n = Number(v);
@@ -21,7 +21,7 @@ export const config = {
 
   ai: {
     /**
-     * The model used for background work — clustering a scan into topics and
+     * The model used for background work, clustering a scan into topics and
      * writing the insight on Explore. A model id from lib/ai/models.ts. When
      * unset, the first free model with a key wins. Grok is never chosen
      * automatically because it bills credits.

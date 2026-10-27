@@ -78,7 +78,7 @@ function postBrief(p: Post) {
     p.score !== undefined ? `${compact(p.score)} ${p.source === "youtube" ? "likes" : "upvotes"}` : null,
     p.views !== undefined ? `${compact(p.views)} views` : null,
   ].filter(Boolean).join(", ");
-  return `${p.title} — ${p.community}, ${relativeTime(p.createdAt)}${nums ? `, ${nums}` : ""} — ${p.url}`;
+  return `${p.title} | ${p.community}, ${relativeTime(p.createdAt)}${nums ? `, ${nums}` : ""} | ${p.url}`;
 }
 
 function inRegion(t: Topic, region: RegionFilter) {
@@ -94,7 +94,7 @@ function topicBrief(t: Topic, scan: NicheScan, region: RegionFilter) {
     heat: t.heat,
     virality: `${t.virality}/100 (~${compact(t.metrics.perHour)} reactions an hour)`,
     verdict: t.verdict ? `${t.verdict.call} (${t.verdict.score}/100): ${t.verdict.reasons.join("; ")}` : undefined,
-    trend: t.isNew ? "new" : t.heatDelta === null ? "—" : t.heatDelta > 0 ? `rising (+${t.heatDelta})` : t.heatDelta < 0 ? `cooling (${t.heatDelta})` : "steady",
+    trend: t.isNew ? "new" : t.heatDelta === null ? "unknown" : t.heatDelta > 0 ? `rising (+${t.heatDelta})` : t.heatDelta < 0 ? `cooling (${t.heatDelta})` : "steady",
     summary: t.summary,
     whyNow: t.whyNow,
     sentiment: t.sentiment,
@@ -123,7 +123,7 @@ async function getTrending(args: { niche?: string; region?: RegionFilter; limit?
     .filter((x) => !args.niche || x.niche === args.niche)
     .sort((a, b) => b.value - a.value)
     .slice(0, 8)
-    .map((x) => `${x.title} — ${x.measure} (${x.source}${x.context ? `; ${x.context}` : ""})`);
+    .map((x) => `${x.title}: ${x.measure} (${x.source}${x.context ? `; ${x.context}` : ""})`);
   return {
     scannedAt: scans.map((s) => `${nicheLabel(s.niche)}: ${relativeTime(s.scannedAt)}`).join("; "),
     region,
@@ -173,7 +173,7 @@ async function whatsBeingSaid(args: { topic?: string; query?: string; region?: R
     if (!c) return null;
     const t = threads.get(c.postId);
     const nums = [c.score !== undefined ? `${compact(c.score)} ${c.source === "reddit" ? "upvotes" : "likes"}` : null, c.replyCount ? `${c.replyCount} replies` : null].filter(Boolean).join(", ");
-    return `${t?.community ?? c.source}${nums ? ` (${nums})` : ""}: “${truncate(c.text.replace(/\s+/g, " "), 320)}” — ${c.url}`;
+    return `${t?.community ?? c.source}${nums ? ` (${nums})` : ""}: “${truncate(c.text.replace(/\s+/g, " "), 320)}” ${c.url}`;
   };
   return {
     takeaway: d.takeaway || d.note || "",

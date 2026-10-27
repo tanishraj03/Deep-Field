@@ -15,7 +15,7 @@ async function suggestions(): Promise<string[]> {
     .flatMap((s) => s.topics.slice(0, 2))
     .sort((a, b) => b.heat - a.heat)
     .slice(0, 10)
-    .map((t) => t.title.replace(/[“”"'’:—–|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2).slice(0, 3).join(" "))
+    .map((t) => t.title.replace(/[“”"'’:\u2014\u2013|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2).slice(0, 3).join(" "))
     .filter(Boolean);
 }
 

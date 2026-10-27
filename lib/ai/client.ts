@@ -1,3 +1,4 @@
+import { noEmDashDeep } from "@/lib/utils";
 import { apiKey, forgetResolution, MODEL_BY_ID, PROVIDERS, resolveModel, type ModelSlot } from "./models";
 
 /**
@@ -32,7 +33,7 @@ function explain(slot: ModelSlot, status: number, body: string): string {
   if (status === 401 || status === 403) return `${p.name} rejected the API key (${p.keyEnv}). Check it at ${p.keyUrl}.`;
   if (status === 429) return `${p.name}'s free limit is used up for now. Switch to another model, or wait a minute.`;
   if (status === 402) return `${p.name} has no credits left on this key.`;
-  if (status === 404) return `${p.name} no longer serves this model. Try again — the next available model will be used.`;
+  if (status === 404) return `${p.name} no longer serves this model. Try again and the next available model will be used.`;
   if (status === 503) return `${p.name} is overloaded right now. Switch to another model, or try again shortly.`;
   const msg = body.match(/"message"\s*:\s*"([^"]{0,220})/)?.[1] ?? body.slice(0, 220);
   return `${p.name} error ${status}: ${msg}`;
@@ -144,7 +145,7 @@ export async function completeJSON<T>(slotId: string, system: string, user: stri
     messages: [{ role: "system", content: system }, { role: "user", content: user }],
     json: true, maxTokens, temperature: 0.3,
   });
-  return { data: parseJson<T>(r.content), model: r.model };
+  return { data: noEmDashDeep(parseJson<T>(r.content)), model: r.model };
 }
 
 export type StreamEvent =

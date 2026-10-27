@@ -23,7 +23,7 @@ export async function GET() {
  * the whole catalogue does not, so the interface and the scheduler walk the
  * list one request at a time.
  *
- * No secret is needed — the page calls this — but a niche is not rescanned
+ * No secret is needed, the page calls this, but a niche is not rescanned
  * more often than SCAN_COOLDOWN_MS unless the caller holds CRON_SECRET.
  */
 export async function POST(req: NextRequest) {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (age < config.scan.cooldownMs) {
       return NextResponse.json({
         ok: true, skipped: true,
-        reason: `Scanned ${Math.round(age / 60000)} min ago — fresh enough.`,
+        reason: `Scanned ${Math.round(age / 60000)} min ago, fresh enough.`,
       });
     }
   }

@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 /*
-  DeepField — conversation intelligence.
+  DeepField: conversation intelligence.
   Quiet surfaces, one brand accent (violet) for interaction, `ember` for heat.
   Charts use their own validated pair: Global = blue, India = orange
-  (checked with the dataviz validator in both modes — never reuse these for UI).
+  (checked with the dataviz validator in both modes; never reuse these for UI).
 */
 @layer base {
   :root {

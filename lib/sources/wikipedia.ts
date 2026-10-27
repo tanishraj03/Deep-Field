@@ -4,7 +4,7 @@ import { hash } from "@/lib/utils";
 import { getJson } from "./http";
 
 /**
- * Wikimedia pageviews — free, keyless, explicitly offered for reuse. When a
+ * Wikimedia pageviews, free, keyless, explicitly offered for reuse. When a
  * moment breaks, people look it up, so a page jumping to six figures is a
  * measured attention spike. The per-country endpoint is what gives India its
  * own read rather than a slice of the English-language world.

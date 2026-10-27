@@ -83,7 +83,7 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
             <EmptyState
               icon={Radar}
               title={`${NICHE_BY_ID.get(niche)?.label} hasn't been scanned yet`}
-              body="Scan it now — it takes about thirty seconds."
+              body="Scan it now. It takes about a minute."
               action={<Button variant="primary" loading={progress.running} onClick={() => run([niche])}>Scan this niche</Button>}
             />
           )
@@ -141,7 +141,7 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
       <Stat
         label="Rising or new"
         value={rising}
-        sub={hottest ? <span className="line-clamp-1">Hottest: {hottest.title}</span> : "—"}
+        sub={hottest ? <span className="line-clamp-1">Hottest: {hottest.title}</span> : "None yet"}
       />
     </div>
   );

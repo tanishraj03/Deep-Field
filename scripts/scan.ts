@@ -33,7 +33,7 @@ const niches = onlySignals ? [] : picked.length ? picked : NICHES.map((n) => n.i
   }
   if (onlySignals || !picked.length) {
     const s = await scanSignals();
-    console.log(`✓ signals: ${s.signals.length} — ${s.sources.map((x) => `${x.source} ${x.ok ? x.count : "✗ " + x.note}`).join(", ")}`);
+    console.log(`✓ signals: ${s.signals.length}: ${s.sources.map((x) => `${x.source} ${x.ok ? x.count : "✗ " + x.note}`).join(", ")}`);
     console.log(`    top: ${s.signals.sort((a, b) => b.value - a.value).slice(0, 4).map((x) => `${x.title} (${compact(x.value)})`).join(", ")}`);
   }
 })();

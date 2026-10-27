@@ -92,7 +92,7 @@ export async function storyComments(post: Post, max = 20): Promise<Comment[]> {
     .slice(0, max);
 }
 
-/** Stories and comments mentioning a query in the last `days` — every one Algolia indexes. */
+/** Stories and comments mentioning a query in the last `days`, every one Algolia indexes. */
 export async function mentions(query: string, days = 7): Promise<number> {
   const since = Math.floor(Date.now() / 1000) - days * 86400;
   const r = await getJson<Res>(`${BASE}/search?query=${encodeURIComponent(query)}&tags=${encodeURIComponent("(story,comment)")}&numericFilters=${encodeURIComponent(`created_at_i>${since}`)}&hitsPerPage=1&typoTolerance=false`);

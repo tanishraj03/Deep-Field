@@ -4,7 +4,7 @@ import { decodeEntities } from "@/lib/utils";
 import { getText } from "./http";
 
 /**
- * What is trending on X, read from getdaytrends.com — a public tracker of
+ * What is trending on X, read from getdaytrends.com, a public tracker of
  * X's trending list per country. X's own API has no free read access, and
  * scraping X directly breaks its terms; this reads one public page per
  * region, which the site's robots.txt does not restrict.

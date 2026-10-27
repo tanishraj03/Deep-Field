@@ -7,7 +7,7 @@ import { config } from "@/lib/config";
  * drives them all (lib/ai/client.ts). Free-tier rosters change month to month,
  * so each entry lists candidate ids in order of preference and the first one
  * the provider's live /models list still offers is used. Nothing breaks when a
- * provider retires an id — the next candidate takes over.
+ * provider retires an id, the next candidate takes over.
  */
 
 export type ProviderId = "gemini" | "groq" | "cerebras" | "openrouter" | "mistral" | "xai";
@@ -52,7 +52,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   xai: {
     id: "xai", name: "xAI Grok", baseUrl: "https://api.x.ai/v1",
     keyEnv: "XAI_API_KEY", keyUrl: "https://console.x.ai",
-    pricing: "Paid — billed to your xAI credits", free: false,
+    pricing: "Paid, billed to your xAI credits", free: false,
   },
 };
 
@@ -117,7 +117,7 @@ export const MODELS: ModelSlot[] = [
   {
     id: "openrouter-free", provider: "openrouter", label: "OpenRouter Free",
     tags: ["Most variety", "Free"],
-    bestFor: "DeepSeek, Qwen, Llama and others free — 50 messages a day",
+    bestFor: "DeepSeek, Qwen, Llama and others free, 50 messages a day",
     candidates: [
       "openai/gpt-oss-120b:free", "deepseek/deepseek-chat-v3.1:free", "qwen/qwen3-235b-a22b:free",
       "meta-llama/llama-3.3-70b-instruct:free", "z-ai/glm-4.5-air:free",
@@ -185,7 +185,7 @@ export async function resolveModel(slot: ModelSlot): Promise<string> {
   if (!pick && slot.anyFree) {
     pick = listed.find((l) => l.id.endsWith(":free") && l.tools !== false)?.id;
   }
-  // An empty list means the listing call failed, not that nothing exists —
+  // An empty list means the listing call failed, not that nothing exists , 
   // try the first preference and let the real call report what is wrong.
   pick ??= slot.candidates[0];
   resolved.set(slot.id, pick);

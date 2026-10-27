@@ -83,7 +83,7 @@ export function ExploreView({ initialQuery, initialRegion, suggestions }: {
     <div className="space-y-6">
       <div>
         <h1 className="text-[1.75rem] font-semibold tracking-tight">Explore</h1>
-        <p className="mt-1 text-sm text-muted">How big is a conversation, where is it happening, and what are people saying — for any topic, this week.</p>
+        <p className="mt-1 text-sm text-muted">How big is a conversation, where is it happening, and what are people saying, for any topic, this week.</p>
       </div>
 
       <form
@@ -95,7 +95,7 @@ export function ExploreView({ initialQuery, initialRegion, suggestions }: {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Search any topic — ozempic, iPhone 18, Zepto, creatine…"
+            placeholder="Search any topic: ozempic, iPhone 18, Zepto, creatine…"
             className="h-10 w-full bg-transparent text-[0.95rem] outline-none placeholder:text-faint"
             autoFocus={!initialQuery}
           />
@@ -355,7 +355,7 @@ function Insight({ insight, state, error, onRetry }: {
                 <ul className="space-y-2.5">
                   {insight.threads.map((t) => (
                     <li key={t.title} className="text-[0.875rem] leading-snug">
-                      <span className="font-medium">{t.title}</span> <span className="text-muted">— {t.detail}</span>
+                      <span className="font-medium">{t.title}</span> <span className="text-muted">· {t.detail}</span>
                     </li>
                   ))}
                 </ul>

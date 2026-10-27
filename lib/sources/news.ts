@@ -2,7 +2,7 @@ import type { Post } from "@/lib/types";
 import { get, SourceError } from "./http";
 
 /**
- * GDELT DOC 2.0 — a free, keyless index of worldwide online news, updated
+ * GDELT DOC 2.0, a free, keyless index of worldwide online news, updated
  * every 15 minutes, filterable by the publisher's country. It is the one
  * source here that can say how many articles discussed something, per day,
  * and how much of that coverage was Indian.
@@ -23,7 +23,7 @@ function gdeltQuery(query: string, india: boolean): string {
 async function call<T>(params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams({ ...params, format: "json" });
   const res = await get(`${API}?${qs}`, { gapMs: GAP_MS, timeoutMs: 12_000 });
-  if (res.status === 429) throw new SourceError("GDELT is rate limiting — news volume will return on the next search", 429);
+  if (res.status === 429) throw new SourceError("GDELT is rate limiting; news volume will return on the next search", 429);
   if (!res.ok) throw new SourceError(`GDELT HTTP ${res.status}`, res.status);
   const text = await res.text();
   try { return JSON.parse(text) as T; }

@@ -17,7 +17,7 @@ import { postsFor } from "@/lib/view";
 /**
  * What people are saying: the comments under a conversation's biggest
  * threads, plus what Bluesky is posting about it, with the most revealing
- * ones picked out — the comments that explain why it is spreading, not just
+ * ones picked out, the comments that explain why it is spreading, not just
  * the most upvoted.
  *
  * Read on demand rather than during scans: a niche scan already runs close to

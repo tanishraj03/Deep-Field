@@ -18,8 +18,8 @@ export interface ScanProgress {
 const idle: ScanProgress = { running: false, done: 0, total: 0, current: null, log: [] };
 
 /**
- * Scans run one niche per request — each fits inside a serverless time limit,
- * the whole catalogue does not — so the browser walks the list and shows
+ * Scans run one niche per request, each fits inside a serverless time limit,
+ * the whole catalogue does not, so the browser walks the list and shows
  * progress as it goes. The page refreshes after each niche, so results
  * appear while the rest are still scanning.
  */

@@ -21,11 +21,11 @@ export const summaryKey = (niche: string) => `summary:${niche}`;
 export const SIGNALS_KEY = "signals";
 
 /** Bump when scoring changes, so stored summaries are re-scored from their full scans. */
-const SCORE_VERSION = 3;
+const SCORE_VERSION = 4;
 
 /**
- * A scan cut down to what the Pulse board shows — no posts, angles or
- * questions — and scored once at write time. Full scans run to megabytes
+ * A scan cut down to what the Pulse board shows, no posts, angles or
+ * questions, and scored once at write time. Full scans run to megabytes
  * across twenty niches; summaries keep the board quick to load.
  */
 export function summarize(scan: NicheScan): NicheScan {
@@ -55,7 +55,7 @@ function rank(p: Post): number {
 }
 
 /**
- * Recurring threads — daily questions, weekly megathreads, promo threads —
+ * Recurring threads, daily questions, weekly megathreads, promo threads , 
  * collect huge comment counts without being a conversation about anything.
  * Left in, they top every niche.
  */
@@ -89,7 +89,7 @@ async function readVolume(niche: Niche, previous: NicheScan | null) {
     };
   });
   // A failed read comes back empty. Don't stamp it as fresh, or a zero would
-  // be shown — and reused — for a day; leave it to be retried next scan.
+  // be shown, and reused, for a day; leave it to be retried next scan.
   const read = communities.filter((c) => c.daily.length).length;
   return { communities, volumeAt: read >= subs.length / 2 ? new Date().toISOString() : null, reused: false };
 }
@@ -142,7 +142,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     source: via === "reddit-api" ? "Reddit API" : "Reddit (archive)",
     ok: reads.some(Boolean),
     count: reads.reduce((a, r) => a + (r?.posts.length ?? 0), 0),
-    note: failures.length ? `${failures.length} of ${subs.length} communities failed — ${failures.slice(0, 2).join("; ")}` : undefined,
+    note: failures.length ? `${failures.length} of ${subs.length} communities failed: ${failures.slice(0, 2).join("; ")}` : undefined,
   });
 
   lap("reddit");
@@ -159,7 +159,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
           if (p) { p.hotRank = r; ranked++; }
         }
       } catch (e) {
-        note = `Live Reddit ranking unavailable (${errMessage(e)}) — ranked by measured engagement`;
+        note = `Live Reddit ranking unavailable (${errMessage(e)}); ranked by measured engagement`;
         break;
       }
     }
@@ -196,7 +196,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     }
   }
 
-  // 5. Community volume — changes daily, so read at most once a day.
+  // 5. Community volume, changes daily, so read at most once a day.
   const volume = await readVolume(niche, previous);
 
   lap("hn/youtube/volume");
@@ -219,7 +219,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     }
     if (!drafts.length) aiNote = `AI grouping failed (${failures.join("; ")}); grouped by shared words instead.`;
   } else if (opts.ai !== false && !slots.length) {
-    aiNote = "No AI key set — topics are grouped by shared words. Add GEMINI_API_KEY for named conversations and content angles.";
+    aiNote = "No AI key set, so topics are grouped by shared words. Add GEMINI_API_KEY for named conversations and content angles.";
   }
   lap("clustering");
   const groupedBy = drafts.length ? "ai" : "rules";

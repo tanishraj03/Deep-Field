@@ -1,4 +1,4 @@
-name: DeepField — Daily scan
+name: DeepField daily scan
 
 # Wakes every hour and asks the app whether today's scan is due. The time is
 # set in the app (Settings → Daily scan, default 9:00 AM IST); the app answers

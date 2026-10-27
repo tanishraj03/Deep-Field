@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-int
 
 export const metadata: Metadata = {
   title: { default: "DeepField", template: "%s · DeepField" },
-  description: "What the internet is talking about, in every niche, in India and globally — and what to make content about.",
+  description: "What the internet is talking about, in every niche, in India and globally, and what to make content about.",
 };
 
 export const viewport: Viewport = {

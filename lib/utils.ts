@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Stable id from any string. Deterministic across runs — dedup depends on it. */
+/** Stable id from any string. Deterministic across runs, dedup depends on it. */
 export function hash(input: string): string {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < input.length; i++) {
@@ -131,7 +131,7 @@ export async function pool<T, R>(items: T[], limit: number, fn: (t: T) => Promis
  * Per-host request spacing.
  *
  * config.ingestion.minDelayPerHostMs has always documented "we read public
- * feeds at a walking pace", but nothing read it — the collector fired six
+ * feeds at a walking pace", but nothing read it, the collector fired six
  * concurrent requests and hosts that group several feeds under one domain got
  * them all at once. Reddit answered that with HTTP 429 for five sources every
  * run. Requests to the same host now queue behind each other; different hosts
@@ -201,9 +201,25 @@ export function terms(text: string): string[] {
     .filter((w) => w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w));
 }
 
+/**
+ * Em dashes out of generated text: the product's voice uses commas, colons
+ * and full stops instead. Platform text (titles, comments) is left as written.
+ */
+export function noEmDash(s: string): string {
+  return s.replace(/\s*\u2014\s*/g, ", ").replace(/,\s*,/g, ",");
+}
+
+/** Every string inside a parsed JSON value, cleaned with noEmDash. */
+export function noEmDashDeep<T>(v: T): T {
+  if (typeof v === "string") return noEmDash(v) as T;
+  if (Array.isArray(v)) return v.map(noEmDashDeep) as T;
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, noEmDashDeep(x)])) as T;
+  return v;
+}
+
 /** A topic title cut down to a search query: its first few content words. */
 export function shortQuery(title: string, words = 4): string {
-  return title.replace(/[“”"'’:—–\-|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w.toLowerCase())).slice(0, words).join(" ");
+  return title.replace(/[“”"'’:\u2014\u2013\-|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w.toLowerCase())).slice(0, words).join(" ");
 }
 
 export function jaccard(a: string[], b: string[]): number {

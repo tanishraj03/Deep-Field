@@ -2,7 +2,7 @@ import { config } from "@/lib/config";
 import { get, SourceError, sleep } from "./http";
 
 /**
- * Arctic Shift — a public, free archive of Reddit, kept current to within
+ * Arctic Shift, a public, free archive of Reddit, kept current to within
  * minutes. It is how this app reads Reddit without a Reddit API key: Reddit's
  * own JSON answers 403 to anonymous clients, and its RSS rate-limits after a
  * handful of requests.
@@ -13,7 +13,7 @@ import { get, SourceError, sleep } from "./http";
  *  - before that they read 0 or 1, because the archive has not re-collected
  *    them yet. Those posts are marked unmeasured and count as volume only.
  *
- * The service asks for light use — a few requests a second — and signals load
+ * The service asks for light use, a few requests a second, and signals load
  * with 429 plus X-RateLimit-Reset. We wait that out once, then give up.
  * https://github.com/ArthurHeitmann/arctic_shift/blob/master/api/README.md
  */
@@ -76,7 +76,7 @@ async function call<T>(path: string, params: Record<string, string | number | un
       const reset = Number(res.headers.get("x-ratelimit-reset") ?? 5);
       pausedUntil = Math.max(pausedUntil, Date.now() + reset * 1000 + 200);
       if (attempt === 0 && reset <= 15) continue;
-      throw new SourceError("Reddit archive is rate limiting — try again in a minute", 429);
+      throw new SourceError("Reddit archive is rate limiting. Try again in a minute", 429);
     }
     const json = (await res.json().catch(() => ({}))) as { data?: T; error?: string };
     // Under load the service answers 422 "Timeout. Maybe slow down a bit".
@@ -114,7 +114,7 @@ export function threadComments(linkId: string, limit = 100) {
 }
 
 /**
- * A thread's comments as a tree, in Reddit's own listing shape — so the same
+ * A thread's comments as a tree, in Reddit's own listing shape, so the same
  * parser reads this and Reddit's API. `limit` caps the total comments returned.
  */
 export function commentTree(linkId: string, limit = 80) {

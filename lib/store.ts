@@ -9,7 +9,7 @@ import { config } from "@/lib/config";
  * Everything the app keeps is a document: one scan per niche, one signals
  * scan, cached Explore results. With Supabase configured they live in the
  * `app_settings` table (key text, value jsonb) that already exists in every
- * DeepField database — no migration needed. Without it they live in a local
+ * DeepField database, no migration needed. Without it they live in a local
  * JSON file, or /tmp on Vercel, where they last as long as the container.
  */
 
@@ -118,7 +118,7 @@ async function resolve(): Promise<Backend> {
       note = "Supabase";
       return backend;
     }
-    note = "Supabase is configured but unreachable — using a local file instead.";
+    note = "Supabase is configured but unreachable, so a local file is used instead.";
   } else {
     note = process.env.VERCEL
       ? "No database configured: data lives in this server instance and resets when it recycles. Add Supabase to keep it."

@@ -8,7 +8,7 @@ import { getText } from "./http";
  * Google News, through its public RSS feeds. Keyless and quick, with editions
  * for India and the US. Each top story lists the other outlets covering it,
  * which is a fair measure of how big a news story is. Search returns up to
- * 100 recent articles for any query — a floor, not a total.
+ * 100 recent articles for any query, a floor, not a total.
  */
 
 // Entities are left alone: a front page can carry more than the parser's

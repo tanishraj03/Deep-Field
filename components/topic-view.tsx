@@ -142,7 +142,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
           </div>
           {posts.length
             ? posts.map((p) => <PostRow key={p.id} post={p} quote={best.get(p.id)} />)
-            : <p className="py-6 text-sm text-muted">No threads in this region — switch to Everywhere.</p>}
+            : <p className="py-6 text-sm text-muted">No threads in this region. Switch to Everywhere.</p>}
         </Card>
 
         <div className="space-y-4">

@@ -112,9 +112,9 @@ export function clusterByRules(posts: Post[]): Draft[] {
 
 /**
  * The model only sees the strongest few hundred posts, but a scan reads
- * thousands. Every leftover post that is plainly about one of the topics —
+ * thousands. Every leftover post that is plainly about one of the topics , 
  * sharing at least two of its distinctive words, one of them from the topic's
- * title — joins it, so a topic's counts reflect everything read, not just the
+ * title, joins it, so a topic's counts reflect everything read, not just the
  * sample. Words common across the whole scan ("india", "job") do not count.
  */
 export function attachLeftovers(drafts: Draft[], posts: Post[]): Draft[] {

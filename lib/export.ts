@@ -25,7 +25,7 @@ function postLine(p: Post): string {
     p.score !== undefined ? `${compact(p.score)} ${p.source === "youtube" || p.source === "bluesky" || p.source === "instagram" ? "likes" : "upvotes"}` : null,
     p.views !== undefined ? `${compact(p.views)} views` : null,
   ].filter(Boolean).join(", ");
-  return `- [${p.title.replace(/[[\]]/g, "")}](${p.url}) — ${p.community} (${p.region === "IN" ? "India" : "Global"}), ${relativeTime(p.createdAt)}${nums ? `, ${nums}` : ""}`;
+  return `- [${p.title.replace(/[[\]]/g, "")}](${p.url}) · ${p.community} (${p.region === "IN" ? "India" : "Global"}), ${relativeTime(p.createdAt)}${nums ? `, ${nums}` : ""}`;
 }
 
 function discussionSection(d: Discussion | null): string {
@@ -36,11 +36,11 @@ function discussionSection(d: Discussion | null): string {
     const c = index.get(id);
     if (!c) return null;
     const nums = [c.score !== undefined ? `${compact(c.score)} ${c.source === "reddit" ? "upvotes" : "likes"}` : null, c.replyCount ? `${c.replyCount} replies` : null].filter(Boolean).join(", ");
-    return `> ${c.text.replace(/\s+/g, " ").slice(0, 500)}\n> — ${threads.get(c.postId)?.community ?? c.source}${nums ? `, ${nums}` : ""} · [link](${c.url})`;
+    return `> ${c.text.replace(/\s+/g, " ").slice(0, 500)}\n> (${threads.get(c.postId)?.community ?? c.source}${nums ? `, ${nums}` : ""} · [link](${c.url}))`;
   };
   const picks = d.picks.map((p) => {
     const q = quote(p.commentId);
-    return q ? `**${p.role}**${p.why ? ` — ${p.why}` : ""}\n${q}` : null;
+    return q ? `**${p.role}**${p.why ? `: ${p.why}` : ""}\n${q}` : null;
   }).filter(Boolean);
   const themes = d.themes.map((t) => `- **${t.label}**: ${t.detail}`);
   return [
@@ -85,7 +85,7 @@ async function exploreSection(query: string, region: RegionFilter): Promise<stri
   const o = r.opportunity;
   const d = insight?.decision;
   return [
-    `# “${r.query}” — this week, ${where(r.region)}`,
+    `# “${r.query}”, this week, ${where(r.region)}`,
     `Searched ${relativeTime(r.fetchedAt)} by DeepField`,
     "",
     d ? `**Verdict: ${VERDICT[d.call]} (${d.score}/100).** ${insight!.verdict}` : o ? `**Opportunity: ${VERDICT[o.call]} (${o.score}/100).**` : "",

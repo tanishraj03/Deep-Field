@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Push every DeepField environment variable to Vercel.
 #
-# Reads values from .env.local — no secrets are stored in this file, so it is
+# Reads values from .env.local, no secrets are stored in this file, so it is
 # safe to commit. Run from the repo root AFTER `vercel login` and `vercel link`.
 #
 #   ./scripts/vercel-env.sh

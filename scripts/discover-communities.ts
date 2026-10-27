@@ -7,8 +7,8 @@
  *
  * Candidates are the hand-written lists in community-candidates.ts, the
  * niche's existing communities, and archive prefix searches. Each is checked
- * against the Arctic Shift archive — exists, not NSFW, subscribers, posts in
- * the last 7 days — and the most active are kept, India first up to a quota.
+ * against the Arctic Shift archive, exists, not NSFW, subscribers, posts in
+ * the last 7 days, and the most active are kept, India first up to a quota.
  *
  * Gentle on the archive: two requests in flight, a pause between each, and a
  * backoff whenever it answers 429 or "slow down". Every answer is cached in

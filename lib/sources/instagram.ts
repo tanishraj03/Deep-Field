@@ -4,7 +4,7 @@ import { truncate } from "@/lib/utils";
 import { getJson, SourceError } from "./http";
 
 /**
- * Instagram through Meta's official Graph API hashtag search — the only
+ * Instagram through Meta's official Graph API hashtag search, the only
  * free, legitimate way to read public Instagram engagement. It needs your own
  * Business or Creator account (INSTAGRAM_USER_ID) and a long-lived token
  * (INSTAGRAM_ACCESS_TOKEN). Meta allows 30 distinct hashtags per rolling
@@ -30,7 +30,7 @@ export async function hashtagTop(query: string): Promise<Post[]> {
   try {
     found = await getJson(`${GRAPH}/ig_hashtag_search?q=${encodeURIComponent(tag)}&${auth}`);
   } catch (e) {
-    throw new SourceError(`Instagram: ${(e as Error).message} — check the token, or the weekly 30-hashtag limit`);
+    throw new SourceError(`Instagram: ${(e as Error).message}. Check the token, or the weekly 30-hashtag limit`);
   }
   const id = found.data?.[0]?.id;
   if (!id) return [];

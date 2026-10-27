@@ -5,7 +5,7 @@ import { store } from "@/lib/store";
  * workflow wakes every hour and asks claimDue(); the first wake at or after
  * the chosen hour (IST) on a day it has not yet run gets "yes". GitHub's
  * scheduler can start late or skip a beat, so "at or after" rather than
- * "exactly at" — a late wake still runs that day's scan, once.
+ * "exactly at", a late wake still runs that day's scan, once.
  */
 
 export interface Schedule {

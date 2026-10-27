@@ -1,8 +1,9 @@
 import { Fragment, type ReactNode } from "react";
+import { noEmDash } from "@/lib/utils";
 
 /**
  * A small Markdown renderer for assistant replies. It builds React elements
- * directly — no HTML strings — so nothing a model writes can inject markup.
+ * directly, no HTML strings, so nothing a model writes can inject markup.
  * Covers what chat answers use: headings, lists, tables, quotes, code, links.
  */
 
@@ -29,8 +30,9 @@ function inline(text: string, key = "i"): ReactNode[] {
 const isTableSep = (l: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
 const cells = (l: string) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 
+/** Assistant replies. Cleaned of em dashes here so streamed text is too. */
 export function Markdown({ text }: { text: string }) {
-  const lines = text.replace(/\r/g, "").split("\n");
+  const lines = noEmDash(text).replace(/\r/g, "").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   let b = 0;

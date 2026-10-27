@@ -5,7 +5,7 @@ import type { RegionFilter } from "@/lib/types";
 
 /**
  * The India / Global filter, shared by every screen and remembered between
- * visits — switching region on Pulse should still hold when you open Explore.
+ * visits, switching region on Pulse should still hold when you open Explore.
  */
 const Ctx = createContext<{ region: RegionFilter; setRegion: (r: RegionFilter) => void }>({
   region: "ALL", setRegion: () => {},

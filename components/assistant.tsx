@@ -273,13 +273,13 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel }
 function exportMarkdown(chat: Chat, context: string): string {
   const transcript = chat.messages.map((m) => {
     if (m.role === "user") return `### Me\n${m.content}`;
-    const tools = (m.tools ?? []).filter((t) => t.status === "done").map((t) => `_(looked up: ${t.name.replace(/_/g, " ")}${t.summary ? ` — ${t.summary}` : ""})_`).join("\n");
+    const tools = (m.tools ?? []).filter((t) => t.status === "done").map((t) => `_(looked up: ${t.name.replace(/_/g, " ")}${t.summary ? `: ${t.summary}` : ""})_`).join("\n");
     return `### DeepField assistant\n${tools ? `${tools}\n\n` : ""}${m.content}${m.error ? `\n\n_(error: ${m.error})_` : ""}`;
   }).join("\n\n");
   return [
     `<!-- Exported from DeepField on ${new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} -->`,
     "I'm researching what to make content about. Below is the research DeepField collected" +
-      `${chat.contextLabel ? ` on ${chat.contextLabel}` : ""} — real counts, links and comments from Reddit, YouTube, X trends, news and more — followed by my conversation so far. Read it all, then continue helping me from where we left off. Treat the numbers as measured data; flag anything you think is missing.`,
+      `${chat.contextLabel ? ` on ${chat.contextLabel}` : ""} (real counts, links and comments from Reddit, YouTube, X trends, news and more), followed by my conversation so far. Read it all, then continue helping me from where we left off. Treat the numbers as measured data; flag anything you think is missing.`,
     context ? `---\n\n${context}` : "",
     transcript ? `---\n\n## Conversation so far\n\n${transcript}` : "",
   ].filter(Boolean).join("\n\n");
@@ -320,7 +320,7 @@ function ExportButton({ chat }: { chat: Chat }) {
       </button>
       {open && (
         <div className="card absolute right-0 top-7 z-30 w-60 p-1.5 shadow-lg">
-          <p className="px-2.5 pb-1.5 pt-1 text-[0.6875rem] leading-snug text-faint">The research, numbers, links, top comments and this conversation — ready to paste into ChatGPT, Claude or Gemini.</p>
+          <p className="px-2.5 pb-1.5 pt-1 text-[0.6875rem] leading-snug text-faint">The research, numbers, links, top comments and this conversation, ready to paste into ChatGPT, Claude or Gemini.</p>
           <button onClick={() => run("copy")} disabled={state === "working"} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.8125rem] hover:bg-hair/[0.05]">
             {state === "working" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "copied" ? <Check className="h-3.5 w-3.5 text-rise" /> : <Copy className="h-3.5 w-3.5" />}
             {state === "copied" ? "Done" : "Copy for another AI"}

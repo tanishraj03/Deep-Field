@@ -17,8 +17,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 const DATA = [
-  { name: "Reddit", what: "Every niche's communities, India and global: threads, comments and upvotes — up to 300 posts per community per scan. Read through the Arctic Shift archive, or Reddit's own API when keys are set.", key: hasRedditApi() ? "REDDIT_CLIENT_ID ✓" : "optional · REDDIT_CLIENT_ID/SECRET for live counts", match: /^Reddit (API|\(archive\))/ },
-  { name: "YouTube", what: "Trending videos per category in India and the US (25 each), most-viewed uploads for a searched topic, and top comments.", key: config.youtube.apiKey ? "YOUTUBE_API_KEY ✓" : "YOUTUBE_API_KEY (free) — not set", match: /^YouTube/ },
+  { name: "Reddit", what: "Every niche's communities, India and global: threads, comments and upvotes, up to 300 posts per community per scan. Read through the Arctic Shift archive, or Reddit's own API when keys are set.", key: hasRedditApi() ? "REDDIT_CLIENT_ID ✓" : "optional · REDDIT_CLIENT_ID/SECRET for live counts", match: /^Reddit (API|\(archive\))/ },
+  { name: "YouTube", what: "Trending videos per category in India and the US (25 each), most-viewed uploads for a searched topic, and top comments.", key: config.youtube.apiKey ? "YOUTUBE_API_KEY ✓" : "YOUTUBE_API_KEY (free): not set", match: /^YouTube/ },
   { name: "X (Twitter)", what: "What is trending on X in India and worldwide, read from getdaytrends.com's public tracker. X has no free API, and scraping X itself breaks its terms.", key: "none", match: /^X trending/ },
   { name: "Instagram", what: "Top posts for a hashtag with likes and comments, through Meta's official API and your own Business or Creator account. Used by Explore; Meta allows 30 hashtags a week.", key: hasInstagram() ? "INSTAGRAM_ACCESS_TOKEN ✓" : "optional · INSTAGRAM_ACCESS_TOKEN + INSTAGRAM_USER_ID", match: null, off: !hasInstagram() },
   { name: "Bluesky · Mastodon", what: "Trending topics, hashtags and shared links on the open social web, plus Bluesky post search with likes and replies for any topic.", key: "none", match: /^(Bluesky|Mastodon)/ },
@@ -77,7 +77,7 @@ export default async function SettingsPage() {
           })}
         </Card>
         <p className="mt-2 text-xs text-faint">
-          Reddit counts from the archive settle ~36 hours after posting; newer threads count as volume and are labelled. Nothing is estimated — a number we do not have is left blank.
+          Reddit counts from the archive settle ~36 hours after posting; newer threads count as volume and are labelled. Nothing is estimated: a number we do not have is left blank.
         </p>
       </section>
 
@@ -102,7 +102,7 @@ export default async function SettingsPage() {
           })}
         </Card>
         <p className="mt-2 text-xs text-faint">
-          Background work (grouping scans into conversations, Explore insights) uses {bg ? <strong className="text-muted">{bg.label}</strong> : "no model — add GEMINI_API_KEY"}. It only ever picks a free model; set AI_BACKGROUND_MODEL to choose.
+          Background work (grouping scans into conversations, Explore insights) uses {bg ? <strong className="text-muted">{bg.label}</strong> : "no model yet (add GEMINI_API_KEY)"}. It only ever picks a free model; set AI_BACKGROUND_MODEL to choose.
         </p>
       </section>
 
