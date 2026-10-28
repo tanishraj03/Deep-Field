@@ -190,22 +190,38 @@ function SpikingNow({ signals, region, niche }: { signals: SignalsScan; region: 
 /**
  * The niche row. Your niches come first, marked with a dot. It scrolls
  * sideways; arrows at the ends say there is more and scroll a page at a time.
+ *
+ * The arrows sit beside the row, not over it, so they never cover a niche.
+ * Once the row overflows both stay put, the one with nowhere to go dimmed:
+ * showing and hiding them would change the row's width under the cursor.
  */
 function NichePills({ niche, setNiche, scans, region, mine }: {
   niche: string | null; setNiche: (n: string | null) => void; scans: Map<string, NicheScan>; region: RegionFilter; mine: Set<string>;
 }) {
   const row = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: false });
+  const [edges, setEdges] = useState({ overflows: false, left: false, right: false });
   const measure = useCallback(() => {
     const el = row.current;
     if (!el) return;
-    setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+    const next = {
+      overflows: el.scrollWidth > el.clientWidth + 4,
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    };
+    setEdges((e) => (e.overflows === next.overflows && e.left === next.left && e.right === next.right ? e : next));
   }, []);
+  // The row's own size, not the window's: collapsing the sidebar widens it
+  // without any window resize.
   useEffect(() => {
+    const el = row.current;
+    if (!el) return;
     measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [measure]);
+  // Counts change with the region, and a pill's width with them.
+  useEffect(measure, [measure, region, scans]);
   // Bring the selected niche into view, e.g. when arriving from a link.
   useEffect(() => {
     row.current?.querySelector<HTMLElement>("[aria-pressed=true]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -228,23 +244,28 @@ function NichePills({ niche, setNiche, scans, region, mine }: {
       </span>
     </button>
   );
-  const arrow = (dir: 1 | -1) => (
-    <button
-      onClick={() => scroll(dir)}
-      aria-label={dir === 1 ? "Scroll niches right" : "Scroll niches left"}
-      className={`press absolute top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-muted shadow-sm ring-1 ring-hair/10 transition hover:text-ink ${dir === 1 ? "right-0" : "left-0"}`}
-    >
-      {dir === 1 ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-    </button>
-  );
+  const arrow = (dir: 1 | -1) => {
+    const can = dir === 1 ? edges.right : edges.left;
+    return (
+      <button
+        onClick={() => scroll(dir)}
+        disabled={!can}
+        aria-label={dir === 1 ? "Scroll niches right" : "Scroll niches left"}
+        className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-hair/15 bg-surface text-ink shadow-[0_2px_10px_-3px_rgb(0_0_0/0.3)] transition hover:border-hair/30 hover:bg-hair/[0.06] disabled:pointer-events-none disabled:opacity-30 disabled:shadow-none"
+      >
+        {dir === 1 ? <ChevronRight className="h-4 w-4" strokeWidth={2.4} /> : <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />}
+      </button>
+    );
+  };
   return (
-    <div className="relative">
+    <div className="flex items-center gap-2">
+      {edges.overflows && arrow(-1)}
       <div
         ref={row}
         onScroll={measure}
-        className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1"
+        className="no-scrollbar -mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-0.5"
         style={{
-          maskImage: `linear-gradient(90deg, ${edges.left ? "transparent, #000 48px" : "#000"}, ${edges.right ? "#000 calc(100% - 56px), transparent" : "#000"})`,
+          maskImage: `linear-gradient(90deg, ${edges.left ? "transparent, #000 24px" : "#000"}, ${edges.right ? "#000 calc(100% - 24px), transparent" : "#000"})`,
         }}
       >
         {pill(null, "All niches")}
@@ -257,8 +278,7 @@ function NichePills({ niche, setNiche, scans, region, mine }: {
             : p;
         })}
       </div>
-      {edges.left && arrow(-1)}
-      {edges.right && arrow(1)}
+      {edges.overflows && arrow(1)}
     </div>
   );
 }
