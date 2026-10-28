@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Moon, Search, Settings, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
+import { cn, SIDEBAR_COOKIE } from "@/lib/utils";
+import { Ambient } from "./ambient";
 import { useTheme } from "./theme";
 
 const NAV = [
@@ -30,14 +31,14 @@ function isActive(path: string, href: string) {
   return path.startsWith(href);
 }
 
-function Logo() {
+function Logo({ iconOnly }: { iconOnly?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-2.5 px-2">
+    <Link href="/" aria-label="DeepField" className={cn("flex items-center gap-2.5", iconOnly ? "justify-center" : "px-2")}>
       <span className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-ink">
         <span className="absolute h-3 w-3 rounded-full border-[1.5px] border-canvas" />
         <span className="absolute h-1 w-1 translate-x-[5px] -translate-y-[5px] rounded-full bg-ember" />
       </span>
-      <span className="text-[0.95rem] font-semibold tracking-tight">DeepField</span>
+      {!iconOnly && <span className="text-[0.95rem] font-semibold tracking-tight">DeepField</span>}
     </Link>
   );
 }
@@ -53,7 +54,7 @@ function SettingsLink() {
   );
 }
 
-function ThemeSwitch() {
+function ThemeSwitch({ vertical }: { vertical?: boolean }) {
   const { theme, setTheme } = useTheme();
   const opts = [
     { id: "light", icon: Sun, label: "Light" },
@@ -61,7 +62,7 @@ function ThemeSwitch() {
     { id: "system", icon: Laptop, label: "System" },
   ] as const;
   return (
-    <div className="flex items-center gap-0.5 rounded-pill bg-hair/[0.05] p-0.5" role="group" aria-label="Appearance">
+    <div className={cn("flex items-center gap-0.5 rounded-pill bg-hair/[0.05] p-0.5", vertical && "flex-col")} role="group" aria-label="Appearance">
       {opts.map(({ id, icon: Icon, label }) => (
         <button
           key={id}
@@ -93,7 +94,7 @@ function Avatar({ account, size = 28 }: { account: Account; size?: number }) {
 }
 
 /** Who is signed in, with preferences, keys, help and sign out. */
-function AccountMenu({ account, compact }: { account: Account; compact?: boolean }) {
+function AccountMenu({ account, compact, rail }: { account: Account; compact?: boolean; rail?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const path = usePathname();
@@ -116,9 +117,10 @@ function AccountMenu({ account, compact }: { account: Account; compact?: boolean
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}
-        className={cn("flex items-center gap-2 rounded-pill transition-colors hover:bg-hair/[0.05]", compact ? "p-1" : "w-full p-1.5 pr-3")}>
+        title={rail ? `@${account.username}` : undefined}
+        className={cn("flex items-center gap-2 rounded-pill transition-colors hover:bg-hair/[0.05]", compact || rail ? "p-1" : "w-full p-1.5 pr-3")}>
         <Avatar account={account} size={compact ? 26 : 28} />
-        {!compact && (
+        {!compact && !rail && (
           <span className="min-w-0 text-left">
             <span className="block truncate text-[0.8125rem] font-medium">@{account.username}</span>
             <span className="block truncate text-[0.6875rem] text-faint">{account.email}</span>
@@ -154,8 +156,43 @@ function AccountMenu({ account, compact }: { account: Account; compact?: boolean
   );
 }
 
-export function Shell({ children, account }: { children: React.ReactNode; account: Account | null }) {
+function RailLink({ href, label, icon: Icon, active, collapsed, small, layoutId }: {
+  href: string; label: string; icon: React.ElementType; active: boolean; collapsed: boolean; small?: boolean; layoutId?: string;
+}) {
+  return (
+    <Link href={href} title={collapsed ? label : undefined} aria-label={collapsed ? label : undefined}
+      className={cn(
+        "relative flex items-center gap-3 rounded-xl font-medium transition-colors",
+        small ? "py-1.5 text-[0.8125rem]" : "py-2 text-[0.875rem]",
+        collapsed ? "justify-center px-0" : "px-3",
+        active ? "text-ink" : "text-muted hover:bg-hair/[0.04] hover:text-ink",
+        active && !layoutId && "bg-hair/[0.07]",
+      )}>
+      {active && layoutId && (
+        <motion.span layoutId={layoutId} className="absolute inset-0 rounded-xl bg-hair/[0.07]"
+          transition={{ type: "spring", stiffness: 500, damping: 40 }} />
+      )}
+      <Icon className="relative h-4 w-4 shrink-0" strokeWidth={2} />
+      {!collapsed && <span className="relative truncate">{label}</span>}
+    </Link>
+  );
+}
+
+export function Shell({ children, account, initialCollapsed = false }: { children: React.ReactNode; account: Account | null; initialCollapsed?: boolean }) {
   const path = usePathname();
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const toggle = useCallback(() => setCollapsed((c) => !c), []);
+  useEffect(() => {
+    document.cookie = `${SIDEBAR_COOKIE}=${collapsed ? "closed" : "open"}; path=/; max-age=31536000; samesite=lax`;
+  }, [collapsed]);
+  // Ctrl/Cmd + \ toggles the sidebar.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "\\" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggle(); }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [toggle]);
   // The assistant is a full-height workspace; everything else scrolls.
   const fullBleed = path.startsWith("/assistant");
 
@@ -163,50 +200,40 @@ export function Shell({ children, account }: { children: React.ReactNode; accoun
     return <main className="min-h-dvh">{children}</main>;
   }
 
+  const ToggleIcon = collapsed ? PanelLeftOpen : PanelLeftClose;
+  const toggleButton = (
+    <button onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={`${collapsed ? "Expand" : "Collapse"} sidebar (Ctrl/⌘ \\)`}
+      aria-expanded={!collapsed}
+      className="rounded-lg p-1.5 text-faint transition-colors hover:bg-hair/[0.05] hover:text-ink">
+      <ToggleIcon className="h-4 w-4" />
+    </button>
+  );
+
   return (
     <div className="min-h-dvh lg:flex">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r px-3 py-5 lg:flex">
-        <Logo />
+      <Ambient />
+      <aside className={cn(
+        "sticky top-0 z-30 hidden h-dvh shrink-0 flex-col border-r bg-canvas/55 py-5 backdrop-blur-xl transition-[width] duration-300 ease-ios lg:flex",
+        collapsed ? "w-[4.25rem] px-2.5" : "w-60 px-3",
+      )}>
+        <div className={cn("flex items-center", collapsed ? "flex-col gap-3" : "justify-between")}>
+          <Logo iconOnly={collapsed} />
+          {toggleButton}
+        </div>
         <nav className="mt-8 space-y-0.5" aria-label="Main">
-          {NAV.map((n) => {
-            const active = isActive(path, n.href);
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={cn(
-                  "relative flex items-center gap-3 rounded-xl px-3 py-2 text-[0.875rem] font-medium transition-colors",
-                  active ? "text-ink" : "text-muted hover:text-ink hover:bg-hair/[0.04]",
-                )}
-              >
-                {active && (
-                  <motion.span layoutId="nav-active" className="absolute inset-0 rounded-xl bg-hair/[0.07]"
-                    transition={{ type: "spring", stiffness: 500, damping: 40 }} />
-                )}
-                <n.icon className="relative h-4 w-4" strokeWidth={2} />
-                <span className="relative">{n.label}</span>
-              </Link>
-            );
-          })}
+          {NAV.map((n) => <RailLink key={n.href} {...n} active={isActive(path, n.href)} collapsed={collapsed} layoutId="nav-active" />)}
         </nav>
         <nav className="mt-6 space-y-0.5 border-t pt-4" aria-label="More">
-          {MORE.map((n) => {
-            const active = path.startsWith(n.href);
-            return (
-              <Link key={n.href} href={n.href}
-                className={cn("flex items-center gap-3 rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium transition-colors",
-                  active ? "bg-hair/[0.07] text-ink" : "text-muted hover:bg-hair/[0.04] hover:text-ink")}>
-                <n.icon className="h-4 w-4" strokeWidth={2} />{n.label}
-              </Link>
-            );
-          })}
+          {MORE.map((n) => <RailLink key={n.href} {...n} active={path.startsWith(n.href)} collapsed={collapsed} small />)}
         </nav>
         <div className="mt-auto space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <ThemeSwitch />
+          <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "justify-between px-1")}>
+            <ThemeSwitch vertical={collapsed} />
             <SettingsLink />
           </div>
-          <AccountMenu account={account} />
+          <div className={cn(collapsed && "flex justify-center")}>
+            <AccountMenu account={account} rail={collapsed} />
+          </div>
         </div>
       </aside>
 

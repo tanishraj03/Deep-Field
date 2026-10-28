@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, AtSign, Check, KeyRound, Loader2, X } from "lucide-react";
 import { QUESTIONS, type FeedPrefs, type Question } from "@/lib/prefs";
 import { cn } from "@/lib/utils";
+import { Ambient } from "./ambient";
 import { Button } from "./ui";
 
 type Availability = { state: "idle" | "checking" | "ok" | "bad"; message?: string };
@@ -79,6 +80,7 @@ export function Onboarding({ firstName, suggested, initialPrefs, editing }: {
 
   return (
     <div className="flex min-h-dvh items-start justify-center px-4 py-10 sm:items-center">
+      <Ambient variant="hero" />
       <div className="w-full max-w-[34rem]">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-1.5" aria-label={done ? "Done" : `Step ${step + 1} of ${total + 1}`}>

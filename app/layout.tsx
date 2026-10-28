@@ -2,9 +2,11 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { RegionProvider } from "@/components/region";
+import { cookies } from "next/headers";
 import { Shell } from "@/components/shell";
 import { ThemeProvider } from "@/components/theme";
 import { currentUser, isOwner } from "@/lib/auth";
+import { SIDEBAR_COOKIE } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
@@ -24,7 +26,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser();
+  const [user, jar] = await Promise.all([currentUser(), cookies()]);
   const account = user?.username
     ? { username: user.username, name: user.name, email: user.email, picture: user.picture, owner: isOwner(user) }
     : null;
@@ -41,7 +43,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="font-sans">
         <ThemeProvider>
           <RegionProvider fallback={user?.prefs.region ?? null}>
-            <Shell account={account}>{children}</Shell>
+            <Shell account={account} initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "closed"}>{children}</Shell>
           </RegionProvider>
         </ThemeProvider>
       </body>

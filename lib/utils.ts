@@ -229,3 +229,6 @@ export function jaccard(a: string[], b: string[]): number {
   for (const x of A) if (B.has(x)) inter++;
   return inter / (A.size + B.size - inter);
 }
+
+/** The sidebar's collapsed state, in a cookie so the server renders the right width and nothing jumps on load. */
+export const SIDEBAR_COOKIE = "df-sidebar";
