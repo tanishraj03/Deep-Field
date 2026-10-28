@@ -162,5 +162,7 @@ export interface IntegrationStatus {
   hint: string | null;
   /** The owner's account falls back to the server's own key. */
   fromServer: boolean;
+  /** The owner switched the server's key off from the Keys page. */
+  serverOff: boolean;
   savedAt: string | null;
 }

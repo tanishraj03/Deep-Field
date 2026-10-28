@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
-import { keyStatus, removeKeys, saveKeys } from "@/lib/auth/users";
+import { isOwner, keyStatus, removeKeys, restoreServerKeys, saveKeys } from "@/lib/auth/users";
 import { verifyKey } from "@/lib/auth/verify-key";
 import type { KeyField } from "@/lib/keys";
 import { INTEGRATION_BY_ID, type IntegrationId } from "@/lib/keys-catalog";
@@ -12,12 +12,20 @@ export async function GET() {
   return withUser(async (user) => NextResponse.json({ ok: true, keys: await keyStatus(user) }));
 }
 
-/** Check and save one integration's key(s): { integration, values: { field: value } }. */
+/**
+ * Check and save one integration's key(s): { integration, values: { field: value } }.
+ * The owner can also switch a server key back on: { integration, restoreServer: true }.
+ */
 export async function PUT(req: NextRequest) {
   return withUser(async (user) => {
-    const body = (await req.json().catch(() => ({}))) as { integration?: string; values?: Record<string, unknown> };
+    const body = (await req.json().catch(() => ({}))) as { integration?: string; values?: Record<string, unknown>; restoreServer?: boolean };
     const integ = INTEGRATION_BY_ID.get(body.integration as IntegrationId);
     if (!integ) return NextResponse.json({ ok: false, error: "Unknown key type." }, { status: 400 });
+    if (body.restoreServer) {
+      if (!isOwner(user)) return NextResponse.json({ ok: false, error: "Only the owner has server keys." }, { status: 403 });
+      await restoreServerKeys(user.id, integ.fields.map((f) => f.field));
+      return NextResponse.json({ ok: true, keys: await keyStatus(user) });
+    }
 
     const values: Partial<Record<KeyField, string>> = {};
     for (const f of integ.fields) {
@@ -39,7 +47,7 @@ export async function DELETE(req: NextRequest) {
   return withUser(async (user) => {
     const integ = INTEGRATION_BY_ID.get(req.nextUrl.searchParams.get("integration") as IntegrationId);
     if (!integ) return NextResponse.json({ ok: false, error: "Unknown key type." }, { status: 400 });
-    await removeKeys(user.id, integ.fields.map((f) => f.field));
+    await removeKeys(user, integ.fields.map((f) => f.field));
     return NextResponse.json({ ok: true, keys: await keyStatus(user) });
   });
 }

@@ -91,7 +91,8 @@ export async function savePrefs(user: User, prefs: FeedPrefs): Promise<User> {
 
 /* ───────────── keys ───────────── */
 
-type StoredKeys = Partial<Record<KeyField, { v: string; at: string }>>;
+/** Saved keys by field, plus the server keys the owner switched off from the Keys page. */
+type StoredKeys = Partial<Record<KeyField, { v: string; at: string }>> & { off?: KeyField[] };
 
 function cipherKey() {
   if (!config.auth.secret) throw new Error("AUTH_SECRET is not set");
@@ -137,10 +138,11 @@ export async function savedKeys(uid: string): Promise<KeySet> {
  * also falls back to the server's keys for anything they have not added.
  */
 export async function keysFor(user: User): Promise<KeySet> {
-  const own = await savedKeys(user.id);
+  const [stored, own] = await Promise.all([storedKeys(user.id), savedKeys(user.id)]);
   if (!isOwner(user)) return own;
   const server = envKeys();
-  return Object.fromEntries(KEY_FIELDS.map((f) => [f, own[f] || server[f]])) as unknown as KeySet;
+  const off = new Set(stored.off ?? []);
+  return Object.fromEntries(KEY_FIELDS.map((f) => [f, own[f] || (off.has(f) ? "" : server[f])])) as unknown as KeySet;
 }
 
 export async function saveKeys(uid: string, values: Partial<Record<KeyField, string>>): Promise<void> {
@@ -149,27 +151,47 @@ export async function saveKeys(uid: string, values: Partial<Record<KeyField, str
   for (const [f, v] of Object.entries(values) as [KeyField, string][]) {
     if (v) stored[f] = { v: encrypt(v), at };
   }
+  stored.off = (stored.off ?? []).filter((f) => !(f in values));
   await store.set(keysKey(uid), stored);
 }
 
-export async function removeKeys(uid: string, fields: KeyField[]): Promise<void> {
-  const stored = await storedKeys(uid);
+/**
+ * Remove a saved key. When the owner removes a key that only the server
+ * provides, the server key is switched off for them instead, since an
+ * environment variable can't be deleted from here; restoreServerKeys
+ * switches it back on.
+ */
+export async function removeKeys(user: User, fields: KeyField[]): Promise<void> {
+  const stored = await storedKeys(user.id);
+  const hadOwn = fields.some((f) => stored[f]);
   for (const f of fields) delete stored[f];
+  if (!hadOwn && isOwner(user)) stored.off = [...new Set([...(stored.off ?? []), ...fields])];
+  await store.set(keysKey(user.id), stored);
+}
+
+export async function restoreServerKeys(uid: string, fields: KeyField[]): Promise<void> {
+  const stored = await storedKeys(uid);
+  stored.off = (stored.off ?? []).filter((f) => !fields.includes(f));
   await store.set(keysKey(uid), stored);
 }
 
 export async function keyStatus(user: User): Promise<IntegrationStatus[]> {
   const [stored, own] = await Promise.all([storedKeys(user.id), savedKeys(user.id)]);
   const server = isOwner(user) ? envKeys() : NO_KEYS;
+  const off = new Set(stored.off ?? []);
   return INTEGRATIONS.map((i) => {
     const fields = i.fields.map((f) => f.field);
     const saved = fields.every((f) => own[f]);
-    const first = own[fields[0]];
+    const onServer = fields.every((f) => server[f]);
+    const serverOff = onServer && fields.some((f) => off.has(f));
+    const fromServer = !saved && onServer && !serverOff;
+    const first = saved ? own[fields[0]] : fromServer ? server[fields[0]] : "";
     return {
       id: i.id as IntegrationId,
       saved,
-      hint: saved && first ? first.slice(-4) : null,
-      fromServer: !saved && fields.every((f) => server[f]),
+      hint: first ? first.slice(-4) : null,
+      fromServer,
+      serverOff: !saved && serverOff,
       savedAt: saved ? stored[fields[0]]?.at ?? null : null,
     };
   });

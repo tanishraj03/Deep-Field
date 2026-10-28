@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ExternalLink, Eye, EyeOff, KeyRound, Server, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Eye, EyeOff, KeyRound, RotateCcw, Trash2 } from "lucide-react";
 import type { KeyField } from "@/lib/keys";
 import { INTEGRATIONS, type Integration, type IntegrationStatus } from "@/lib/keys-catalog";
 import { cn, relativeTime } from "@/lib/utils";
@@ -60,7 +60,8 @@ function KeyRow({ i, s, owner, onChange }: { i: Integration; s: IntegrationStatu
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Partial<Record<KeyField, string>>>({});
   const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState<"save" | "remove" | null>(null);
+  const [busy, setBusy] = useState<"save" | "remove" | "restore" | null>(null);
+  const connected = s.saved || s.fromServer;
   const [msg, setMsg] = useState<{ tone: "ok" | "error" | "note"; text: string } | null>(null);
 
   const save = async () => {
@@ -79,15 +80,33 @@ function KeyRow({ i, s, owner, onChange }: { i: Integration; s: IntegrationStatu
     }
   };
 
+  const restore = async () => {
+    setBusy("restore"); setMsg(null);
+    try {
+      const res = await fetch("/api/keys", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ integration: i.id, restoreServer: true }) });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error ?? "Couldn't switch the server key back on.");
+      onChange(json.keys);
+      setMsg({ tone: "ok", text: "Server key connected again." });
+    } catch (e) {
+      setMsg({ tone: "error", text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const remove = async () => {
-    if (!confirm(`Remove your ${i.name} key? Anything that uses it stops working until you add one again.`)) return;
+    const what = s.fromServer
+      ? `Disconnect the server's ${i.name} key from your account? You can reconnect it here any time.`
+      : `Remove your ${i.name} key? Anything that uses it stops working until you add one again.`;
+    if (!confirm(what)) return;
     setBusy("remove"); setMsg(null);
     try {
       const res = await fetch(`/api/keys?integration=${i.id}`, { method: "DELETE" });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error ?? "Couldn't remove the key.");
       onChange(json.keys);
-      setMsg({ tone: "ok", text: "Removed." });
+      setMsg({ tone: "ok", text: s.fromServer ? "Disconnected." : "Removed." });
     } catch (e) {
       setMsg({ tone: "error", text: (e as Error).message });
     } finally {
@@ -109,20 +128,26 @@ function KeyRow({ i, s, owner, onChange }: { i: Integration; s: IntegrationStatu
           </div>
           <p className="mt-1 text-sm text-muted">{i.unlocks}</p>
           <p className="mt-1.5 flex items-center gap-1.5 text-xs">
-            {s.saved ? (
-              <span className="flex items-center gap-1 text-rise"><Check className="h-3.5 w-3.5" />Added · ends in <code className="num">{s.hint}</code>{s.savedAt && <span className="text-faint"> · {relativeTime(s.savedAt)}</span>}</span>
-            ) : s.fromServer ? (
-              <span className="flex items-center gap-1 text-muted" title="Only your account can use the server's keys."><Server className="h-3.5 w-3.5" />Using the server&apos;s key (owner only)</span>
+            {connected ? (
+              <span className="flex flex-wrap items-center gap-1 text-rise">
+                <Check className="h-3.5 w-3.5" />Connected{s.hint && <> · ends in <code className="num">{s.hint}</code></>}
+                <span className="text-faint">
+                  {s.saved ? (s.savedAt ? ` · added ${relativeTime(s.savedAt)}` : "") : " · server key, only your account can use it"}
+                </span>
+              </span>
+            ) : s.serverOff ? (
+              <span className="text-faint">Disconnected · the server has a key you can reconnect</span>
             ) : (
-              <span className="text-faint">Not added</span>
+              <span className="text-faint">Not connected</span>
             )}
           </p>
         </div>
         {!editing && (
           <div className="flex shrink-0 gap-1.5">
-            {s.saved && <Button size="sm" variant="ghost" loading={busy === "remove"} onClick={remove} aria-label={`Remove ${i.name} key`}><Trash2 className="h-3.5 w-3.5" />Remove</Button>}
-            <Button size="sm" variant={s.saved || s.fromServer ? "secondary" : "primary"} onClick={() => { setEditing(true); setMsg(null); }}>
-              {s.saved ? "Replace" : s.fromServer && owner ? "Use my own" : "Add key"}
+            {connected && <Button size="sm" variant="ghost" loading={busy === "remove"} onClick={remove} aria-label={`Remove ${i.name} key`}><Trash2 className="h-3.5 w-3.5" />Remove</Button>}
+            {s.serverOff && owner && <Button size="sm" variant="ghost" loading={busy === "restore"} onClick={restore}><RotateCcw className="h-3.5 w-3.5" />Reconnect server key</Button>}
+            <Button size="sm" variant={connected ? "secondary" : "primary"} onClick={() => { setEditing(true); setMsg(null); }}>
+              {connected ? "Change" : "Add key"}
             </Button>
           </div>
         )}

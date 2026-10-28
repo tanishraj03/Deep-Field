@@ -24,7 +24,7 @@ export default async function KeysPage() {
         </p>
         {owner && (
           <p className="mt-2 rounded-xl bg-hair/[0.05] px-3 py-2 text-xs text-muted">
-            You&apos;re signed in as the owner, so the server&apos;s own keys cover anything you haven&apos;t added here. No other account can use them.
+            You&apos;re signed in as the owner, so the server&apos;s keys show as connected here. Change one to use a different key, or remove it to switch it off for your account. No other account can use them.
           </p>
         )}
       </div>
