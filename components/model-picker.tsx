@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, KeyRound } from "lucide-react";
 import type { PublicModel } from "@/lib/ai/models";
@@ -84,21 +85,21 @@ export function ModelPicker({ models, value, onChange }: { models: PublicModel[]
                       <span className="mt-0.5 block text-[0.6875rem] text-faint">{m.providerName} · {m.pricing}</span>
                     </span>
                     {!m.available && (
-                      <a
-                        href={m.keyUrl} target="_blank" rel="noreferrer"
+                      <Link
+                        href="/keys"
                         onClick={(e) => e.stopPropagation()}
                         className="mt-0.5 flex shrink-0 items-center gap-1 rounded-pill bg-hair/[0.06] px-2 py-0.5 text-[0.6875rem] font-medium text-muted hover:text-ink"
-                        title={`Add ${m.keyEnv} to .env.local`}
+                        title={`Add your ${m.providerName} key in Keys`}
                       >
                         <KeyRound className="h-3 w-3" />Add key
-                      </a>
+                      </Link>
                     )}
                   </button>
                 ))}
               </div>
             ))}
             <p className="px-2.5 pb-1.5 pt-2 text-[0.6875rem] leading-relaxed text-faint">
-              Keys live in <code>.env.local</code> on the server and never reach the browser. See Sources for setup.
+              Models run on your own keys, kept encrypted on the server. Add or change them in <Link href="/keys" className="underline underline-offset-2 hover:text-ink">Keys</Link>.
             </p>
           </motion.div>
         )}

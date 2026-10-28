@@ -30,7 +30,7 @@ export class AIError extends Error {
 
 function explain(slot: ModelSlot, status: number, body: string): string {
   const p = PROVIDERS[slot.provider];
-  if (status === 401 || status === 403) return `${p.name} rejected the API key (${p.keyEnv}). Check it at ${p.keyUrl}.`;
+  if (status === 401 || status === 403) return `${p.name} rejected your API key. Check it, or replace it in Keys.`;
   if (status === 429) return `${p.name}'s free limit is used up for now. Switch to another model, or wait a minute.`;
   if (status === 402) return `${p.name} has no credits left on this key.`;
   if (status === 404) return `${p.name} no longer serves this model. Try again and the next available model will be used.`;
@@ -113,7 +113,7 @@ async function post(slot: ModelSlot, model: string, o: RequestOpts): Promise<Res
 function slotOf(id: string): ModelSlot {
   const slot = MODEL_BY_ID.get(id);
   if (!slot) throw new AIError(`Unknown model "${id}"`);
-  if (!apiKey(slot.provider)) throw new AIError(`${PROVIDERS[slot.provider].keyEnv} is not set.`);
+  if (!apiKey(slot.provider)) throw new AIError(`Add a ${PROVIDERS[slot.provider].name} key in Keys to use this model.`);
   return slot;
 }
 

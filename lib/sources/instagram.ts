@@ -1,4 +1,4 @@
-import { config } from "@/lib/config";
+import { currentKeys } from "@/lib/keys";
 import type { Post } from "@/lib/types";
 import { truncate } from "@/lib/utils";
 import { getJson, SourceError } from "./http";
@@ -14,7 +14,7 @@ import { getJson, SourceError } from "./http";
 
 const GRAPH = "https://graph.facebook.com/v23.0";
 
-export const hasInstagram = () => Boolean(config.instagram.accessToken && config.instagram.userId);
+export const hasInstagram = () => Boolean(currentKeys().instagramToken && currentKeys().instagramUserId);
 
 interface Media { id: string; caption?: string; media_type?: string; comments_count?: number; like_count?: number; permalink?: string; timestamp?: string }
 
@@ -22,10 +22,11 @@ interface Media { id: string; caption?: string; media_type?: string; comments_co
 export const toHashtag = (q: string) => q.toLowerCase().replace(/[^a-z0-9_]/g, "");
 
 export async function hashtagTop(query: string): Promise<Post[]> {
-  if (!hasInstagram()) throw new SourceError("Add INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_USER_ID to include Instagram");
+  if (!hasInstagram()) throw new SourceError("Add an Instagram token and user id in Keys to include Instagram");
   const tag = toHashtag(query);
   if (!tag) return [];
-  const auth = `user_id=${config.instagram.userId}&access_token=${config.instagram.accessToken}`;
+  const { instagramUserId, instagramToken } = currentKeys();
+  const auth = `user_id=${instagramUserId}&access_token=${instagramToken}`;
   let found: { data?: { id: string }[] };
   try {
     found = await getJson(`${GRAPH}/ig_hashtag_search?q=${encodeURIComponent(tag)}&${auth}`);

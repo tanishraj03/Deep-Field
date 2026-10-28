@@ -9,17 +9,31 @@ DeepField scouts Reddit, Hacker News, YouTube, news, Wikipedia, Google Trends, B
 | **Pulse** | What's being talked about right now, across 20 niches. Every conversation has real counts (threads, comments, upvotes, views), a heat score, whether it's new or rising, an India/Global split, the questions people are asking and content angles. Filter to India or Global. |
 | **Explore** | Type any topic. Get how many conversations happened this week, per source and per day, where (communities, India vs global), Wikipedia attention, the actual threads, and an AI read: sub-conversations, sentiment, questions, angles and a verdict. |
 | **Assistant** | Chat with a model of your choice. It has tools: it reads the latest scan, runs Explore searches and reads Reddit threads, so answers are grounded in live numbers, not memory. |
-| **Sources** | Which sources are working, which keys are set, when each niche was last scanned. |
+| **Keys** | Each user's own API keys, each with an ⓘ that explains how to get it. Checked on save, stored encrypted. |
+| **Help & FAQ** | How to use the platform, what the scores mean, and answers to common questions. |
+| **Settings** | Which sources are working, which models your keys unlock, when each niche was last scanned. |
+
+## Accounts and keys
+
+Everyone signs in with Google, picks a username, and answers up to five skippable questions (niches, audience, platforms, heat vs virality, role) that order their feed and brief the assistant. Change them later under **Feed preferences**.
+
+DeepField is **bring your own key**. Every model call, YouTube search and Reddit request runs inside the signed-in user's key scope (`lib/keys.ts`), so nobody spends anyone else's credits. Outside a user's request the server has no keys at all. Saved keys are checked with the provider, encrypted with AES-256-GCM under `AUTH_SECRET`, and never sent back to the browser.
+
+The keys in `.env.local` / Vercel are the **server's own**. Only the account `OWNER_EMAIL` (default `tanish@yaas.studio`) can use them, as a fallback for any key it hasn't added itself. The scheduled daily scan uses them too. Nobody else's sign-in ever does.
+
+Scans are shared: everyone sees the same conversations, tailored only in order and filters. Rescanning needs an AI key of your own, so a keyless rescan can't replace AI-grouped conversations with keyword groups for everyone.
+
+**Set up sign-in:** Google Cloud Console → APIs & Services → Credentials → *Create credentials → OAuth client ID → Web application*. Add the redirect URIs `http://localhost:3000/api/auth/callback` and `https://<your-app>/api/auth/callback`. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `AUTH_SECRET` (`openssl rand -hex 32`). If the consent screen is in *Testing*, add each user as a test user or publish it.
 
 ## Run it
 
 ```bash
 npm install
-cp .env.example .env.local     # add GEMINI_API_KEY at minimum (free)
+cp .env.example .env.local     # add the Google sign-in values and AUTH_SECRET
 npm run dev                    # http://localhost:3000
 ```
 
-Open Pulse and press **Run the first scan**: it walks every niche (about 20–30s each) and results appear as they land. Or from the terminal, with no time limit:
+Sign in, add a free Gemini key in **Keys**, then open Pulse and press **Run the first scan**: it walks every niche (about 20–30s each) and results appear as they land. Or from the terminal, with no time limit:
 
 ```bash
 npm run scan                   # all niches + spiking signals
@@ -30,6 +44,8 @@ npm run scan -- --no-ai        # keyword grouping, no model calls
 ## Models
 
 Switch models from the picker in the assistant. Each is tagged with what it's best at:
+
+Each user adds these keys on the Keys page. The env names are the server's own keys, for the owner and the scheduler.
 
 | Model | Tag | Key | Cost |
 |---|---|---|---|
@@ -62,7 +78,7 @@ Nothing is estimated: a number a platform didn't report is left blank.
 
 ## Daily scan
 
-A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel).
+A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel). It calls the app with that secret instead of a sign-in, and scans with the server's keys. Only the owner can change the time.
 
 ## Deploy
 
@@ -81,6 +97,9 @@ lib/pulse/              Scan a niche → cluster into conversations → score he
 lib/explore/            Search any topic across sources; AI insight
 lib/ai/                 Model registry, one OpenAI-compatible client, prompts, assistant tools
 lib/store.ts            Key-value store: Supabase or a local file
+lib/keys.ts             Whose keys a request spends (per-request scope)
+lib/auth/               Google sign-in, sessions, users, encrypted keys
+proxy.ts                Sends signed-out visitors to /login, new ones to /welcome
 scripts/scan.ts         Command-line scan; scripts/check-niches.ts validates communities
 ```
 

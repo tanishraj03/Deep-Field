@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -18,7 +19,8 @@ interface ToolStep { id: string; name: string; args: string; status: "running" |
 interface Message { role: "user" | "assistant"; content: string; tools?: ToolStep[]; model?: string; error?: string }
 interface Chat { id: string; title: string; updatedAt: number; context?: ChatContext; contextLabel?: string; messages: Message[] }
 
-const STORE = "df-chats";
+/** Chats live in this browser, one history per account, so a shared computer doesn't mix them. */
+let STORE = "df-chats";
 const MODEL_KEY = "df-model";
 
 function loadChats(): Chat[] {
@@ -56,7 +58,8 @@ const CONTEXT_STARTERS = [
   "What are people actually saying in the comments?",
 ];
 
-export function Assistant({ models, defaultModel, initialContext, contextLabel }: {
+export function Assistant({ models, defaultModel, initialContext, contextLabel, account }: {
+  account: string;
   models: PublicModel[]; defaultModel: string | null; initialContext: ChatContext | null; contextLabel: string | null;
 }) {
   const router = useRouter();
@@ -71,6 +74,7 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel }
 
   // Restore history and model; open a fresh chat if we arrived with context.
   useEffect(() => {
+    STORE = `df-chats:${account}`;
     const saved = loadChats();
     const m = localStorage.getItem(MODEL_KEY);
     if (m && models.some((x) => x.id === m && x.available)) setModel(m);
@@ -361,7 +365,7 @@ function Welcome({ context, onPick, noModels }: { context: string | null; onPick
       </p>
       {noModels && (
         <div className="mt-5 rounded-xl bg-ember/[0.08] p-3.5 text-sm">
-          No model has a key yet. Add <code className="rounded bg-hair/10 px-1">GEMINI_API_KEY</code> (free at aistudio.google.com/apikey) to <code className="rounded bg-hair/10 px-1">.env.local</code> and restart.
+          None of your models has a key yet. <Link href="/keys" className="font-medium text-accent hover:underline">Add a free Gemini key in Keys</Link> to start. It takes about a minute.
         </div>
       )}
       <div className="mt-7 grid gap-2 sm:grid-cols-2">

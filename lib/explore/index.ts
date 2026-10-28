@@ -301,7 +301,7 @@ export async function exploreInsight(query: string, region: RegionFilter, modelI
   const result = (await cachedExplore(query, region)) ?? (await explore(query, region));
   const picked = modelId ? MODEL_BY_ID.get(modelId) : undefined;
   const slots = picked ? [picked] : backgroundModels().slice(0, 3);
-  if (!slots.length) throw new Error("No AI model has a key yet. Add GEMINI_API_KEY (free) to get insights.");
+  if (!slots.length) throw new Error("Add a free Gemini or Groq key in Keys to get AI insights.");
   if (!result.posts.length) throw new Error("Not enough conversation found to interpret.");
 
   type Raw = Partial<Omit<ExploreInsight, "model" | "decision">> & {

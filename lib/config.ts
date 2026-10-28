@@ -61,6 +61,19 @@ export const config = {
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   },
 
+  /**
+   * Sign-in with Google, and the secret that signs sessions and encrypts the
+   * keys users save. Changing AUTH_SECRET signs everyone out and makes saved
+   * keys unreadable (users re-enter them). Generate: openssl rand -hex 32.
+   */
+  auth: {
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    secret: process.env.AUTH_SECRET ?? "",
+    /** The one account that may use the server's own keys above. */
+    ownerEmail: (process.env.OWNER_EMAIL || "tanish@yaas.studio").toLowerCase(),
+  },
+
   /** Lets the scheduler skip the per-niche cooldown. */
   cronSecret: process.env.CRON_SECRET ?? "",
 

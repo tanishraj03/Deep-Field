@@ -1,4 +1,4 @@
-import { config } from "@/lib/config";
+import { currentKeys } from "@/lib/keys";
 import type { RegionCode } from "@/lib/niches";
 import type { Comment, Post } from "@/lib/types";
 import { stripHtml, truncate } from "@/lib/utils";
@@ -11,7 +11,7 @@ import { get, SourceError } from "./http";
 
 const API = "https://www.googleapis.com/youtube/v3";
 
-export const hasYouTube = () => Boolean(config.youtube.apiKey);
+export const hasYouTube = () => Boolean(currentKeys().youtube);
 
 interface Video {
   id: string;
@@ -20,8 +20,9 @@ interface Video {
 }
 
 async function yt<T>(path: string, params: Record<string, string>): Promise<T> {
-  if (!config.youtube.apiKey) throw new SourceError("No YOUTUBE_API_KEY set");
-  const qs = new URLSearchParams({ ...params, key: config.youtube.apiKey });
+  const key = currentKeys().youtube;
+  if (!key) throw new SourceError("No YouTube key added");
+  const qs = new URLSearchParams({ ...params, key });
   const res = await get(`${API}/${path}?${qs}`, { gapMs: 150 });
   if (res.status === 403) {
     const reason = await res.clone().text().catch(() => "");

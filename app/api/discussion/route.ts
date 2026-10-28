@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { withUser } from "@/lib/auth";
 import { queryDiscussion, topicDiscussion } from "@/lib/discussion";
 import type { RegionFilter } from "@/lib/types";
 
@@ -9,6 +10,10 @@ const REGIONS = new Set(["ALL", "IN", "GLOBAL"]);
 
 /** ?topic=<niche>:<id> for a scanned topic, or ?q=<query>&region=<r> for an Explore search. */
 export async function GET(req: NextRequest) {
+  return withUser(() => discussion(req));
+}
+
+async function discussion(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const fresh = p.get("fresh") === "1";
   try {

@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { config } from "@/lib/config";
+import { currentKeys } from "@/lib/keys";
 import { isIndianCommunity, type RegionCode } from "@/lib/niches";
 import type { Comment, Post } from "@/lib/types";
 import { pool, stripHtml, truncate } from "@/lib/utils";
@@ -55,13 +56,17 @@ function fromArctic(p: arctic.ArcticPost, regionHint?: RegionCode): Post {
 
 /* ───────────── Reddit OAuth (optional) ───────────── */
 
-let token: { value: string; expires: number } | null = null;
+/** App tokens per Reddit app (id and secret), so each user's app gets its own. */
+const tokens = new Map<string, { value: string; expires: number }>();
 
-export const hasRedditApi = () => Boolean(config.reddit.clientId && config.reddit.clientSecret);
+export const hasRedditApi = () => Boolean(currentKeys().redditClientId && currentKeys().redditClientSecret);
 
 async function oauthToken(): Promise<string> {
+  const { redditClientId: id, redditClientSecret: secret } = currentKeys();
+  const cacheKey = `${id}:${secret}`;
+  const token = tokens.get(cacheKey);
   if (token && token.expires > Date.now() + 60_000) return token.value;
-  const basic = Buffer.from(`${config.reddit.clientId}:${config.reddit.clientSecret}`).toString("base64");
+  const basic = Buffer.from(`${id}:${secret}`).toString("base64");
   const res = await fetch("https://www.reddit.com/api/v1/access_token", {
     method: "POST",
     headers: {
@@ -73,8 +78,8 @@ async function oauthToken(): Promise<string> {
   });
   if (!res.ok) throw new SourceError(`Reddit API auth failed (HTTP ${res.status})`, res.status);
   const json = (await res.json()) as { access_token: string; expires_in: number };
-  token = { value: json.access_token, expires: Date.now() + json.expires_in * 1000 };
-  return token.value;
+  tokens.set(cacheKey, { value: json.access_token, expires: Date.now() + json.expires_in * 1000 });
+  return json.access_token;
 }
 
 interface ListingChild {

@@ -6,6 +6,7 @@ import type { RegionFilter } from "@/lib/types";
 /**
  * The India / Global filter, shared by every screen and remembered between
  * visits, switching region on Pulse should still hold when you open Explore.
+ * Until you switch it, it opens on the audience you picked at sign-up.
  */
 const Ctx = createContext<{ region: RegionFilter; setRegion: (r: RegionFilter) => void }>({
   region: "ALL", setRegion: () => {},
@@ -13,8 +14,8 @@ const Ctx = createContext<{ region: RegionFilter; setRegion: (r: RegionFilter) =
 
 const VALID = new Set<RegionFilter>(["ALL", "IN", "GLOBAL"]);
 
-export function RegionProvider({ children }: { children: React.ReactNode }) {
-  const [region, setState] = useState<RegionFilter>("ALL");
+export function RegionProvider({ children, fallback }: { children: React.ReactNode; fallback: RegionFilter | null }) {
+  const [region, setState] = useState<RegionFilter>(fallback ?? "ALL");
   useEffect(() => {
     try {
       const saved = localStorage.getItem("df-region") as RegionFilter | null;

@@ -48,7 +48,7 @@ jobs:
           if [ -n "${ONLY:-}" ]; then
             NICHES=$(echo "$ONLY" | tr ',' ' ')
           else
-            NICHES=$(curl -s "${APP_URL}/api/scan" | python3 -c "import json,sys;print(' '.join(n['id'] for n in json.load(sys.stdin)['niches']))")
+            NICHES=$(curl -s "${APP_URL}/api/scan" -H "$AUTH" | python3 -c "import json,sys;print(' '.join(n['id'] for n in json.load(sys.stdin)['niches']))")
           fi
           if [ -z "$NICHES" ]; then echo "::error::Could not list niches from ${APP_URL}/api/scan"; exit 1; fi
 

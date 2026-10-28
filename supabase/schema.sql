@@ -7,6 +7,9 @@
 --   signals            spiking searches, pages and tags
 --   explore:<r>:<id>   a cached Explore search (3h)
 --   insight:<r>:<id>   its AI read (3h)
+--   user:<uid>         an account: profile and feed answers
+--   username:<name>    which account holds a username
+--   keys:<uid>         that account's API keys, each AES-256-GCM encrypted
 
 create table if not exists app_settings (
   key        text primary key,

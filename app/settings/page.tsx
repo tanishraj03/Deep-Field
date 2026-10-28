@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { Check, KeyRound, Minus, X } from "lucide-react";
 import { ScanAllButton } from "@/components/scan-runner";
 import { ScheduleCard } from "@/components/schedule-card";
 import { Badge, Card, Eyebrow } from "@/components/ui";
 import { backgroundModel, MODELS, PROVIDERS, hasKey } from "@/lib/ai/models";
-import { config } from "@/lib/config";
+import { isOwner, withPageKeys } from "@/lib/auth";
+import { hasYouTube } from "@/lib/sources/youtube";
 import { NICHES } from "@/lib/niches";
 import { loadSummaries } from "@/lib/pulse/scan";
 import { hasInstagram } from "@/lib/sources/instagram";
@@ -16,11 +18,12 @@ import { relativeTime } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
-const DATA = [
-  { name: "Reddit", what: "Every niche's communities, India and global: threads, comments and upvotes, up to 300 posts per community per scan. Read through the Arctic Shift archive, or Reddit's own API when keys are set.", key: hasRedditApi() ? "REDDIT_CLIENT_ID ✓" : "optional · REDDIT_CLIENT_ID/SECRET for live counts", match: /^Reddit (API|\(archive\))/ },
-  { name: "YouTube", what: "Trending videos per category in India and the US (25 each), most-viewed uploads for a searched topic, and top comments.", key: config.youtube.apiKey ? "YOUTUBE_API_KEY ✓" : "YOUTUBE_API_KEY (free): not set", match: /^YouTube/ },
+/** The data sources, with whether the signed-in user's keys cover the optional ones. Built per request. */
+const dataSources = () => [
+  { name: "Reddit", what: "Every niche's communities, India and global: threads, comments and upvotes, up to 300 posts per community per scan. Read through the Arctic Shift archive, or Reddit's own API when you add its keys.", key: hasRedditApi() ? "your Reddit app ✓" : "optional · add Reddit API keys for live counts", match: /^Reddit (API|\(archive\))/ },
+  { name: "YouTube", what: "Trending videos per category in India and the US (25 each), most-viewed uploads for a searched topic, and top comments.", key: hasYouTube() ? "your YouTube key ✓" : "YouTube key (free): not added", match: /^YouTube/ },
   { name: "X (Twitter)", what: "What is trending on X in India and worldwide, read from getdaytrends.com's public tracker. X has no free API, and scraping X itself breaks its terms.", key: "none", match: /^X trending/ },
-  { name: "Instagram", what: "Top posts for a hashtag with likes and comments, through Meta's official API and your own Business or Creator account. Used by Explore; Meta allows 30 hashtags a week.", key: hasInstagram() ? "INSTAGRAM_ACCESS_TOKEN ✓" : "optional · INSTAGRAM_ACCESS_TOKEN + INSTAGRAM_USER_ID", match: null, off: !hasInstagram() },
+  { name: "Instagram", what: "Top posts for a hashtag with likes and comments, through Meta's official API and your own Business or Creator account. Used by Explore; Meta allows 30 hashtags a week.", key: hasInstagram() ? "your Instagram token ✓" : "optional · Instagram token + user id", match: null, off: !hasInstagram() },
   { name: "Bluesky · Mastodon", what: "Trending topics, hashtags and shared links on the open social web, plus Bluesky post search with likes and replies for any topic.", key: "none", match: /^(Bluesky|Mastodon)/ },
   { name: "News", what: "Google News top stories in India and the US, sized by how many outlets cover them; GDELT and Google News article counts for a searched topic.", key: "none", match: /^Google News/ },
   { name: "Hacker News", what: "Tech front page and topic search with points and comments.", key: "none", match: /^Hacker News/ },
@@ -38,9 +41,15 @@ function health(runs: SourceRun[]) {
 }
 
 export default async function SettingsPage() {
+  // What the signed-in user's keys unlock, read inside their key scope.
+  const { DATA, keyed, bg, owner } = await withPageKeys((user) => ({
+    DATA: dataSources(),
+    keyed: new Set(Object.values(PROVIDERS).filter((p) => hasKey(p.id)).map((p) => p.id)),
+    bg: backgroundModel(),
+    owner: isOwner(user),
+  }));
   const [pulse, storage, schedule] = await Promise.all([loadSummaries(), store.status(), getSchedule()]);
   const runs = [...pulse.scans.flatMap((s) => s.sources), ...(pulse.signals?.sources ?? [])];
-  const bg = backgroundModel();
   const byNiche = new Map(pulse.scans.map((s) => [s.niche, s]));
 
   return (
@@ -48,15 +57,20 @@ export default async function SettingsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-[1.75rem] font-semibold tracking-tight">Settings</h1>
-          <p className="mt-1 text-sm text-muted">Data sources, AI models and keys, and when each niche was last read.</p>
+          <p className="mt-1 text-sm text-muted">Data sources, which models your keys unlock, and when each niche was last read. Add keys in <Link href="/keys" className="text-accent hover:underline">Keys</Link>.</p>
         </div>
-        <ScanAllButton />
+        {bg && <ScanAllButton />}
       </div>
 
-      <section>
-        <Eyebrow className="mb-3">Schedule</Eyebrow>
-        <ScheduleCard initial={schedule} initialNext={nextRun(schedule)} />
-      </section>
+      {/* The daily scan runs on the server's keys, so only the owner sets it. */}
+      {owner ? (
+        <section>
+          <Eyebrow className="mb-3">Schedule</Eyebrow>
+          <ScheduleCard initial={schedule} initialNext={nextRun(schedule)} />
+        </section>
+      ) : (
+        <p className="text-xs text-faint">Every niche is rescanned automatically once a day ({nextRun(schedule) === "Off" ? "currently off" : `next ${nextRun(schedule)}`}), so the feed stays fresh even if you never rescan.</p>
+      )}
 
       <section>
         <Eyebrow className="mb-3">Data</Eyebrow>
@@ -85,24 +99,24 @@ export default async function SettingsPage() {
         <Eyebrow className="mb-3">AI models</Eyebrow>
         <Card className="divide-y">
           {Object.values(PROVIDERS).map((p) => {
-            const set = hasKey(p.id);
+            const set = keyed.has(p.id);
             const slots = MODELS.filter((m) => m.provider === p.id);
             return (
               <div key={p.id} className="grid gap-2 p-4 sm:grid-cols-[10rem_1fr_auto] sm:items-center">
                 <p className="font-medium">{p.name}</p>
                 <div className="text-sm text-muted">
                   <span className="flex flex-wrap gap-1.5">{slots.map((s) => <Badge key={s.id} tone="outline">{s.label} · {s.tags[0]}</Badge>)}</span>
-                  <span className="mt-1.5 block text-xs text-faint">{p.pricing} · <code>{p.keyEnv}</code></span>
+                  <span className="mt-1.5 block text-xs text-faint">{p.pricing}</span>
                 </div>
                 {set
                   ? <Badge tone="rise"><Check className="h-3 w-3" />Key set</Badge>
-                  : <a href={p.keyUrl} target="_blank" rel="noreferrer"><Badge tone="outline"><KeyRound className="h-3 w-3" />Get a key</Badge></a>}
+                  : <Link href="/keys"><Badge tone="outline"><KeyRound className="h-3 w-3" />Add key</Badge></Link>}
               </div>
             );
           })}
         </Card>
         <p className="mt-2 text-xs text-faint">
-          Background work (grouping scans into conversations, Explore insights) uses {bg ? <strong className="text-muted">{bg.label}</strong> : "no model yet (add GEMINI_API_KEY)"}. It only ever picks a free model; set AI_BACKGROUND_MODEL to choose.
+          Your rescans and Explore insights use {bg ? <strong className="text-muted">{bg.label}</strong> : <>no model yet (<Link href="/keys" className="underline underline-offset-2">add a free Gemini key</Link>)</>}. Background work only ever picks a free model, even when you have a paid key.
         </p>
       </section>
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronDown, ExternalLink, Radar, RefreshCw, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Radar, RefreshCw, TriangleAlert } from "lucide-react";
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
+import type { FeedPrefs } from "@/lib/prefs";
 import type { NicheScan, RegionFilter, Signal, SignalsScan, SourceId } from "@/lib/types";
 import { compact, relativeTime } from "@/lib/utils";
 import { mentionsOf, rankTopics, topicIn, visibleTopics, volumeRows, weeklyPosts, type RankBy } from "@/lib/view";
@@ -16,7 +17,9 @@ import { Button, Card, EmptyState, Eyebrow, REGION_OPTIONS, Segmented, SOURCE_ME
 
 const STALE_MS = 6 * 60 * 60_000;
 
-export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]; signals: SignalsScan | null; initialNiche: string | null }) {
+export function PulseView({ scans, signals, initialNiche, prefs }: {
+  scans: NicheScan[]; signals: SignalsScan | null; initialNiche: string | null; prefs: FeedPrefs;
+}) {
   const { region, setRegion } = useRegion();
   const [niche, setNicheState] = useState<string | null>(initialNiche && NICHE_BY_ID.has(initialNiche) ? initialNiche : null);
   const setNiche = (id: string | null) => {
@@ -25,7 +28,8 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
   };
   const byNiche = useMemo(() => new Map(scans.map((s) => [s.niche, s])), [scans]);
   const { progress, run } = useScanRunner();
-  const [rankBy, setRankBy] = useState<RankBy>("heat");
+  const [rankBy, setRankBy] = useState<RankBy>(prefs.rankBy ?? "heat");
+  const mine = useMemo(() => new Set(prefs.niches.filter((id) => NICHE_BY_ID.has(id))), [prefs.niches]);
   const rankSwitch = (
     <Segmented value={rankBy} onChange={setRankBy} layoutId="pulse-rank" size="sm" options={[
       { value: "heat", label: "Heat" },
@@ -74,7 +78,7 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
 
       <Kpis scans={scans} region={region} />
 
-      <NichePills niche={niche} setNiche={setNiche} scans={byNiche} region={region} />
+      <NichePills niche={niche} setNiche={setNiche} scans={byNiche} region={region} mine={mine} />
 
       {niche ? (
         selected
@@ -88,7 +92,7 @@ export function PulseView({ scans, signals, initialNiche }: { scans: NicheScan[]
             />
           )
       ) : (
-        <Overview scans={scans} region={region} setNiche={setNiche} missing={missing} rankBy={rankBy} rankSwitch={rankSwitch}
+        <Overview scans={scans} region={region} setNiche={setNiche} missing={missing} rankBy={rankBy} rankSwitch={rankSwitch} mine={mine}
           spiking={signals && <SpikingNow signals={signals} region={region} niche={null} />} />
       )}
     </div>
@@ -183,43 +187,100 @@ function SpikingNow({ signals, region, niche }: { signals: SignalsScan; region: 
   );
 }
 
-function NichePills({ niche, setNiche, scans, region }: {
-  niche: string | null; setNiche: (n: string | null) => void; scans: Map<string, NicheScan>; region: RegionFilter;
+/**
+ * The niche row. Your niches come first, marked with a dot. It scrolls
+ * sideways; arrows at the ends say there is more and scroll a page at a time.
+ */
+function NichePills({ niche, setNiche, scans, region, mine }: {
+  niche: string | null; setNiche: (n: string | null) => void; scans: Map<string, NicheScan>; region: RegionFilter; mine: Set<string>;
 }) {
-  const pill = (id: string | null, label: string, count?: number) => (
+  const row = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const measure = useCallback(() => {
+    const el = row.current;
+    if (!el) return;
+    setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  }, []);
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
+  // Bring the selected niche into view, e.g. when arriving from a link.
+  useEffect(() => {
+    row.current?.querySelector<HTMLElement>("[aria-pressed=true]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [niche]);
+  const scroll = (dir: 1 | -1) => row.current?.scrollBy({ left: dir * row.current.clientWidth * 0.75, behavior: "smooth" });
+
+  const ordered = [...NICHES.filter((n) => mine.has(n.id)), ...NICHES.filter((n) => !mine.has(n.id))];
+  const pill = (id: string | null, label: string, count?: number, yours?: boolean) => (
     <button
       key={id ?? "all"}
       onClick={() => setNiche(id)}
+      aria-pressed={niche === id}
+      title={yours ? "One of your niches" : undefined}
       className={`press relative shrink-0 rounded-pill px-3.5 py-1.5 text-[0.8125rem] font-medium transition-colors ${niche === id ? "text-canvas" : "text-muted hover:text-ink bg-hair/[0.05]"}`}
     >
       {niche === id && <motion.span layoutId="niche-pill" className="absolute inset-0 rounded-pill bg-ink" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
-      <span className="relative">{label}{count !== undefined && <span className="num ml-1.5 opacity-60">{count}</span>}</span>
+      <span className="relative flex items-center">
+        {yours && <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />}
+        {label}{count !== undefined && <span className="num ml-1.5 opacity-60">{count}</span>}
+      </span>
+    </button>
+  );
+  const arrow = (dir: 1 | -1) => (
+    <button
+      onClick={() => scroll(dir)}
+      aria-label={dir === 1 ? "Scroll niches right" : "Scroll niches left"}
+      className={`press absolute top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-muted shadow-sm ring-1 ring-hair/10 transition hover:text-ink ${dir === 1 ? "right-0" : "left-0"}`}
+    >
+      {dir === 1 ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
     </button>
   );
   return (
-    <div className="fade-edge-r no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
-      {pill(null, "All niches")}
-      {NICHES.map((n) => {
-        const s = scans.get(n.id);
-        return pill(n.id, n.label, s ? visibleTopics(s, region).length : undefined);
-      })}
+    <div className="relative">
+      <div
+        ref={row}
+        onScroll={measure}
+        className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1"
+        style={{
+          maskImage: `linear-gradient(90deg, ${edges.left ? "transparent, #000 48px" : "#000"}, ${edges.right ? "#000 calc(100% - 56px), transparent" : "#000"})`,
+        }}
+      >
+        {pill(null, "All niches")}
+        {ordered.map((n, i) => {
+          const s = scans.get(n.id);
+          const p = pill(n.id, n.label, s ? visibleTopics(s, region).length : undefined, mine.has(n.id));
+          // A hairline between your niches and the rest.
+          return mine.size > 0 && i === mine.size
+            ? [<span key="divider" aria-hidden className="mx-1 w-px shrink-0 self-stretch bg-hair/15" />, p]
+            : p;
+        })}
+      </div>
+      {edges.left && arrow(-1)}
+      {edges.right && arrow(1)}
     </div>
   );
 }
 
 const BOARD_PREVIEW = 9;
 
-function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitch }: {
+function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitch, mine }: {
   scans: NicheScan[]; region: RegionFilter; setNiche: (n: string) => void; missing: string[]; spiking: React.ReactNode;
-  rankBy: RankBy; rankSwitch: React.ReactNode;
+  rankBy: RankBy; rankSwitch: React.ReactNode; mine: Set<string>;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const hottest = rankTopics(scans.flatMap((s) => visibleTopics(s, region)), region, rankBy).slice(0, 6);
+  // "Hottest" opens on your niches when you picked some and they have anything to show.
+  const yours = scans.filter((s) => mine.has(s.niche)).flatMap((s) => visibleTopics(s, region));
+  const [scope, setScope] = useState<"mine" | "all">(yours.length ? "mine" : "all");
+  const pool = scope === "mine" && yours.length ? yours : scans.flatMap((s) => visibleTopics(s, region));
+  const hottest = rankTopics(pool, region, rankBy).slice(0, 6);
 
   const board = scans
     .map((s) => ({ s, topics: visibleTopics(s, region) }))
     .filter((x) => x.topics.length)
     .sort((a, b) =>
+      Number(mine.has(b.s.niche)) - Number(mine.has(a.s.niche)) ||
       b.topics.slice(0, 3).reduce((x, t) => x + topicIn(t, region).heat, 0) -
       a.topics.slice(0, 3).reduce((x, t) => x + topicIn(t, region).heat, 0));
 
@@ -227,8 +288,18 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
     <div className="space-y-8">
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-[1.05rem] font-semibold tracking-tight">{rankBy === "heat" ? "Hottest conversations" : "Most viral conversations"}</h2>
-          {rankSwitch}
+          <h2 className="text-[1.05rem] font-semibold tracking-tight">
+            {rankBy === "heat" ? "Hottest conversations" : "Most viral conversations"}{scope === "mine" && yours.length ? " in your niches" : ""}
+          </h2>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {yours.length > 0 && (
+              <Segmented value={scope} onChange={setScope} layoutId="pulse-scope" size="sm" options={[
+                { value: "mine", label: "Your niches" },
+                { value: "all", label: "All" },
+              ]} />
+            )}
+            {rankSwitch}
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {hottest.map((t, i) => <TopicCard key={t.id} topic={t} region={region} showNiche rank={i + 1} />)}

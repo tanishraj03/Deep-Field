@@ -1,4 +1,5 @@
 import { config } from "@/lib/config";
+import { currentKeys } from "@/lib/keys";
 
 /**
  * Every model the assistant can switch between.
@@ -140,12 +141,13 @@ export const MODELS: ModelSlot[] = [
 
 export const MODEL_BY_ID = new Map(MODELS.map((m) => [m.id, m]));
 
+/** Whether the signed-in user (or the scheduler) has a key for this provider. See lib/keys.ts. */
 export function hasKey(provider: ProviderId): boolean {
-  return Boolean(config.keys[provider]);
+  return Boolean(currentKeys()[provider]);
 }
 
 export function apiKey(provider: ProviderId): string {
-  return config.keys[provider];
+  return currentKeys()[provider];
 }
 
 /* ───────────── live resolution ───────────── */

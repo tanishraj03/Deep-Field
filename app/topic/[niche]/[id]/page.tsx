@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { TopicView } from "@/components/topic-view";
+import { requireUser } from "@/lib/auth";
 import { loadScan } from "@/lib/pulse/scan";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: Params) {
 }
 
 export default async function TopicPage({ params }: Params) {
-  const { niche, id } = await params;
+  const [{ niche, id }] = await Promise.all([params, requireUser()]);
   const hit = await find(niche, id);
   // Topics are replaced each scan, so an old link can outlive its topic.
   if (!hit) notFound();

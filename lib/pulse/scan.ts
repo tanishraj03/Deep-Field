@@ -219,7 +219,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     }
     if (!drafts.length) aiNote = `AI grouping failed (${failures.join("; ")}); grouped by shared words instead.`;
   } else if (opts.ai !== false && !slots.length) {
-    aiNote = "No AI key set, so topics are grouped by shared words. Add GEMINI_API_KEY for named conversations and content angles.";
+    aiNote = "No AI key set, so topics are grouped by shared words. Add a free Gemini key in Keys for named conversations and content angles.";
   }
   lap("clustering");
   const groupedBy = drafts.length ? "ai" : "rules";

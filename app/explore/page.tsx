@@ -1,4 +1,5 @@
 import { ExploreView } from "@/components/explore-view";
+import { requireUser } from "@/lib/auth";
 import { loadSummaries } from "@/lib/pulse/scan";
 import type { RegionFilter } from "@/lib/types";
 
@@ -20,7 +21,7 @@ async function suggestions(): Promise<string[]> {
 }
 
 export default async function ExplorePage({ searchParams }: { searchParams: Promise<{ q?: string; region?: string }> }) {
-  const { q, region } = await searchParams;
+  const [{ q, region }] = await Promise.all([searchParams, requireUser()]);
   return (
     <ExploreView
       initialQuery={q ?? ""}

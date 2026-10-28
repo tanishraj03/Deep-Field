@@ -3,8 +3,10 @@ import { stream, type ChatMessage, type ToolCall } from "@/lib/ai/client";
 import { defaultChatModel, MODEL_BY_ID } from "@/lib/ai/models";
 import { assistantSystem, postLine } from "@/lib/ai/prompts";
 import { runTool, TOOLS } from "@/lib/ai/tools";
+import { withUser, type User } from "@/lib/auth";
 import { cachedExplore } from "@/lib/explore";
 import { nicheLabel } from "@/lib/niches";
+import { describePrefs } from "@/lib/prefs";
 import { loadScan } from "@/lib/pulse/scan";
 import type { RegionFilter } from "@/lib/types";
 import { compact, istDate } from "@/lib/utils";
@@ -51,9 +53,14 @@ ${r.posts.slice(0, 20).map((p, i) => `${postLine(p, i)} · ${p.url}`).join("\n")
  * The assistant, streamed as newline-delimited JSON events:
  *   {type:"text", delta} · {type:"tool", id, name, args, status, summary?}
  *   {type:"error", message} · {type:"done", model}
- * Tool rounds run here, on the server, so keys never reach the browser.
+ * Tool rounds run here, on the server, so keys never reach the browser,
+ * and every model call and tool spends the signed-in user's own keys.
  */
 export async function POST(req: NextRequest) {
+  return withUser((user) => chat(req, user));
+}
+
+async function chat(req: NextRequest, user: User) {
   const body = (await req.json()) as Body;
   const slot = (body.model && MODEL_BY_ID.get(body.model)) || defaultChatModel();
   const encoder = new TextEncoder();
@@ -62,7 +69,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const send = (e: Record<string, unknown>) => controller.enqueue(encoder.encode(`${JSON.stringify(e)}\n`));
       if (!slot) {
-        send({ type: "error", message: "No AI model has a key yet. Add GEMINI_API_KEY (free at aistudio.google.com/apikey) to .env.local." });
+        send({ type: "error", message: "None of your models has a key yet. Add a free Gemini key in Keys to start chatting." });
         controller.close();
         return;
       }
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
       try {
         const context = await describeContext(body.context);
         const messages: ChatMessage[] = [
-          { role: "system", content: assistantSystem(istDate(), context) },
+          { role: "system", content: assistantSystem(istDate(), context, describePrefs(user.prefs)) },
           ...body.messages.slice(-20).map((m) => ({ role: m.role, content: m.content }) as ChatMessage),
         ];
         // Short-context free tiers cannot hold a full research payload.

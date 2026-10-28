@@ -40,6 +40,11 @@ export function useScanRunner() {
       try {
         const res = await fetch(job.url, { method: "POST" });
         const json = await res.json();
+        if (json.needsKey) {
+          // No point walking the rest of the list: every niche needs the same key.
+          setP((s) => ({ ...s, done: jobs.length, log: [{ label: "Add an AI key in Keys", ok: false, detail: "needed to scan" }] }));
+          break;
+        }
         entry = json.ok
           ? { label: job.label, ok: true, detail: json.skipped ? "already fresh" : json.topics !== undefined ? `${json.topics} topics` : `${json.signals} signals` }
           : { label: job.label, ok: false, detail: json.error ?? `HTTP ${res.status}` };

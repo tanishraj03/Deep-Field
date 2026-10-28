@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { withUser } from "@/lib/auth";
 import { contextMarkdown, type ExportContext } from "@/lib/export";
 
 export const dynamic = "force-dynamic";
@@ -6,6 +7,10 @@ export const maxDuration = 120;
 
 /** The research a chat was opened from, as Markdown, for taking to another AI. */
 export async function POST(req: NextRequest) {
+  return withUser(() => exportContext(req));
+}
+
+async function exportContext(req: NextRequest) {
   const { context } = (await req.json().catch(() => ({}))) as { context?: ExportContext };
   if (!context) return NextResponse.json({ ok: true, markdown: "" });
   try {

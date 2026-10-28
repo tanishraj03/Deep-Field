@@ -117,7 +117,7 @@ async function rank(subject: { title: string; summary?: string; whyNow?: string 
   if (pool.length < 3) return { ...byVotes(), note: pool.length ? undefined : "No comments could be read for this conversation yet." };
 
   const slots = backgroundModels().slice(0, 3);
-  if (!slots.length) return { ...byVotes(), note: "Ranked by votes and replies. Add GEMINI_API_KEY (free) to have the most revealing comments picked out." };
+  if (!slots.length) return { ...byVotes(), note: "Ranked by votes and replies. Add a free Gemini key in Keys to have the most revealing comments picked out." };
 
   let lastError: unknown;
   for (const slot of slots) {

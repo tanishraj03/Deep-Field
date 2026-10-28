@@ -1,5 +1,6 @@
 import { Assistant } from "@/components/assistant";
 import { defaultChatModel, publicModelList } from "@/lib/ai/models";
+import { withPageKeys } from "@/lib/auth";
 import { nicheLabel } from "@/lib/niches";
 import { loadScan } from "@/lib/pulse/scan";
 import type { RegionFilter } from "@/lib/types";
@@ -28,10 +29,16 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
     label = `“${q}”${r === "IN" ? " in India" : r === "GLOBAL" ? " globally" : ""}`;
   }
 
+  // Which models are usable depends on the signed-in user's keys.
+  const { models, defaultModel, account } = await withPageKeys((user) => ({
+    models: publicModelList(), defaultModel: defaultChatModel()?.id ?? null, account: user.id,
+  }));
+
   return (
     <Assistant
-      models={publicModelList()}
-      defaultModel={defaultChatModel()?.id ?? null}
+      account={account}
+      models={models}
+      defaultModel={defaultModel}
       initialContext={context}
       contextLabel={label}
     />
