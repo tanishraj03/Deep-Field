@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isCron, ownerOnly, withUser } from "@/lib/auth";
+import { adminOnly, isCron, withUser } from "@/lib/auth";
+import { recordAdmin } from "@/lib/platform";
 import { claimDue, getSchedule, nextRun, saveSchedule } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
@@ -12,15 +13,16 @@ export async function GET() {
   });
 }
 
-/** Change the time or turn it off, from Settings. The daily scan spends the server's keys, so only the owner may. */
+/** Change the time or turn it off, from Settings. The daily scan spends the server's keys and runs for everyone, so only the admin may. */
 export async function PUT(req: NextRequest) {
-  return withUser(async (user) => ownerOnly(user) ?? saveFrom(req));
+  return withUser(async (user) => adminOnly(user) ?? saveFrom(req));
 }
 
 async function saveFrom(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { hour?: number; enabled?: boolean };
   try {
     const s = await saveSchedule(body);
+    await recordAdmin({ action: s.enabled ? `Set the daily scan to ${String(s.hour).padStart(2, "0")}:00 IST` : "Turned the daily scan off", target: "platform" }).catch(() => {});
     return NextResponse.json({ ok: true, schedule: s, next: nextRun(s) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 400 });

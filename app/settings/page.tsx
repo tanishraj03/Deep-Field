@@ -4,7 +4,7 @@ import { ScanAllButton } from "@/components/scan-runner";
 import { ScheduleCard } from "@/components/schedule-card";
 import { Badge, Card, Eyebrow } from "@/components/ui";
 import { backgroundModel, MODELS, PROVIDERS, hasKey } from "@/lib/ai/models";
-import { isOwner, withPageKeys } from "@/lib/auth";
+import { isAdmin, withPageKeys } from "@/lib/auth";
 import { hasYouTube } from "@/lib/sources/youtube";
 import { NICHES } from "@/lib/niches";
 import { loadSummaries } from "@/lib/pulse/scan";
@@ -46,7 +46,7 @@ export default async function SettingsPage() {
     DATA: dataSources(),
     keyed: new Set(Object.values(PROVIDERS).filter((p) => hasKey(p.id)).map((p) => p.id)),
     bg: backgroundModel(),
-    owner: isOwner(user),
+    owner: isAdmin(user),
   }));
   const [pulse, storage, schedule] = await Promise.all([loadSummaries(), store.status(), getSchedule()]);
   const runs = [...pulse.scans.flatMap((s) => s.sources), ...(pulse.signals?.sources ?? [])];
@@ -62,7 +62,7 @@ export default async function SettingsPage() {
         {bg && <ScanAllButton />}
       </div>
 
-      {/* The daily scan runs on the server's keys, so only the owner sets it. */}
+      {/* The daily scan runs on the server's keys for everyone, so only the admin sets it. */}
       {owner ? (
         <section>
           <Eyebrow className="mb-3">Schedule</Eyebrow>

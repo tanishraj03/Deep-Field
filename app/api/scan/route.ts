@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { backgroundModel } from "@/lib/ai/models";
-import { isCron, withUserOrCron } from "@/lib/auth";
+import { isAdmin, isCron, withUserOrCron } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import { scanKey, scanNiche, scanSignals, SIGNALS_KEY } from "@/lib/pulse/scan";
+import { getPlatform, track } from "@/lib/platform";
 import { store } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,15 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const cron = isCron(req);
-  return withUserOrCron(req, async () => {
+  return withUserOrCron(req, async (user) => {
+    // The admin can leave refreshing to the daily scan alone (Platform tab).
+    if (!cron && !isAdmin(user) && !(await getPlatform()).userScans) {
+      return NextResponse.json({ ok: false, error: "Scans refresh automatically once a day right now, so there's nothing to run." }, { status: 403 });
+    }
     if (!cron && !backgroundModel()) {
       return NextResponse.json({ ok: false, error: "Add a free Gemini or Groq key in Keys to run scans.", needsKey: true }, { status: 403 });
     }
+    if (user) track(user.id, "scans");
     return scan(req, cron);
   });
 }

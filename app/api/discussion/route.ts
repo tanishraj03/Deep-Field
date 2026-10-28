@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { track } from "@/lib/platform";
 import { queryDiscussion, topicDiscussion } from "@/lib/discussion";
 import type { RegionFilter } from "@/lib/types";
 
@@ -10,7 +11,7 @@ const REGIONS = new Set(["ALL", "IN", "GLOBAL"]);
 
 /** ?topic=<niche>:<id> for a scanned topic, or ?q=<query>&region=<r> for an Explore search. */
 export async function GET(req: NextRequest) {
-  return withUser(() => discussion(req));
+  return withUser((user) => { track(user.id, "discussions"); return discussion(req); });
 }
 
 async function discussion(req: NextRequest) {
@@ -23,7 +24,7 @@ async function discussion(req: NextRequest) {
       return NextResponse.json({ ok: true, discussion: await topicDiscussion(niche, id, { fresh }) });
     }
     const region = (REGIONS.has(p.get("region") ?? "") ? p.get("region") : "ALL") as RegionFilter;
-    return NextResponse.json({ ok: true, discussion: await queryDiscussion(p.get("q") ?? "", region, { fresh }) });
+    return NextResponse.json({ ok: true, discussion: await queryDiscussion((p.get("q") ?? "").slice(0, 200), region, { fresh }) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 400 });
   }

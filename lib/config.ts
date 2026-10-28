@@ -71,8 +71,12 @@ export const config = {
     googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     secret: process.env.AUTH_SECRET ?? "",
-    /** The one account that may use the server's own keys above. */
-    ownerEmail: (process.env.OWNER_EMAIL || "tanish@yaas.studio").toLowerCase(),
+    /**
+     * The one account that may use the server's own keys above. Not an admin:
+     * admin access is fixed in lib/auth/admin.ts. OWNER_EMAIL is the old name
+     * of this setting, still read so an existing deployment keeps working.
+     */
+    serverKeysEmail: (process.env.SERVER_KEYS_EMAIL || process.env.OWNER_EMAIL || "tanish@yaas.studio").toLowerCase(),
   },
 
   /** Lets the scheduler skip the per-niche cooldown. */

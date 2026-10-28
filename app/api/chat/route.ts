@@ -4,6 +4,7 @@ import { defaultChatModel, MODEL_BY_ID } from "@/lib/ai/models";
 import { assistantSystem, postLine } from "@/lib/ai/prompts";
 import { runTool, TOOLS } from "@/lib/ai/tools";
 import { withUser, type User } from "@/lib/auth";
+import { track } from "@/lib/platform";
 import { cachedExplore } from "@/lib/explore";
 import { nicheLabel } from "@/lib/niches";
 import { describePrefs } from "@/lib/prefs";
@@ -60,8 +61,21 @@ export async function POST(req: NextRequest) {
   return withUser((user) => chat(req, user));
 }
 
+/** A long research chat fits comfortably; anything past it is not a conversation. */
+const MAX_MESSAGE_CHARS = 20_000;
+
 async function chat(req: NextRequest, user: User) {
-  const body = (await req.json()) as Body;
+  const body = (await req.json().catch(() => null)) as Body | null;
+  if (!body || !Array.isArray(body.messages)) {
+    return new Response(JSON.stringify({ type: "error", message: "That message didn't arrive. Try again." }) + "\n", { status: 400 });
+  }
+  // Only "user" and "assistant" turns come from the browser. A "system" or
+  // "tool" turn would let a caller rewrite the instructions the model runs on.
+  const history = body.messages
+    .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string")
+    .slice(-20)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_CHARS) }));
+  track(user.id, "chats");
   const slot = (body.model && MODEL_BY_ID.get(body.model)) || defaultChatModel();
   const encoder = new TextEncoder();
 
@@ -78,7 +92,7 @@ async function chat(req: NextRequest, user: User) {
         const context = await describeContext(body.context);
         const messages: ChatMessage[] = [
           { role: "system", content: assistantSystem(istDate(), context, describePrefs(user.prefs)) },
-          ...body.messages.slice(-20).map((m) => ({ role: m.role, content: m.content }) as ChatMessage),
+          ...history.map((m) => m as ChatMessage),
         ];
         // Short-context free tiers cannot hold a full research payload.
         const maxToolChars = slot.smallContext ? 3500 : 14000;

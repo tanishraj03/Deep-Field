@@ -4,22 +4,41 @@ import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { envKeys, runWithKeys } from "@/lib/keys";
+import { touchSeen } from "@/lib/platform";
 import { readSession, SESSION_COOKIE } from "./session";
-import { getUser, isOwner, keysFor, type User } from "./users";
+import { getUser, isAdmin, keysFor, type User } from "./users";
 
-export { isOwner, type User } from "./users";
+export { isAdmin, usesServerKeys, type User } from "./users";
 
-/** The signed-in user, read once per request. Null when signed out. */
-export const currentUser = cache(async (): Promise<User | null> => {
+export const SUSPENDED_MESSAGE = "This account has been suspended. If you think that's a mistake, get in touch with the DeepField team.";
+
+/**
+ * The account behind the session cookie, read from the store once per
+ * request: the cookie only says who you are, never what you may do. A
+ * suspended account comes back with suspended set.
+ */
+const sessionAccount = cache(async (): Promise<User | null> => {
   const session = readSession((await cookies()).get(SESSION_COOKIE)?.value);
   if (!session) return null;
   return getUser(session.uid).catch(() => null);
 });
 
+/**
+ * The signed-in user, or null when signed out. A suspended account counts as
+ * signed out, so suspending someone locks every page and API at once, even
+ * though their cookie is still validly signed.
+ */
+export const currentUser = cache(async (): Promise<User | null> => {
+  const user = await sessionAccount();
+  if (!user || user.suspended) return null;
+  touchSeen(user.id);
+  return user;
+});
+
 /** For pages: the signed-in, onboarded user, or a redirect to sign in. */
 export async function requireUser(): Promise<User> {
   const user = await currentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect((await sessionAccount())?.suspended ? `/login?error=${encodeURIComponent(SUSPENDED_MESSAGE)}` : "/login");
   if (!user.username) redirect("/welcome");
   return user;
 }
@@ -55,6 +74,7 @@ export async function withUserOrCron(req: Request, fn: (user: User | null) => Pr
   return withUser(fn);
 }
 
-export const ownerOnly = (user: User | null) => (user && !isOwner(user)
-  ? NextResponse.json({ ok: false, error: "Only the workspace owner can change this." }, { status: 403 })
+/** For API routes only the admin may call: a 403 for anyone else, or null to go ahead. */
+export const adminOnly = (user: User | null) => (!isAdmin(user)
+  ? NextResponse.json({ ok: false, error: "Only the DeepField admin can change this." }, { status: 403 })
   : null);

@@ -60,7 +60,9 @@ export async function finishLogin(origin: string, code: string, verifier: string
   if (claims.iss !== "https://accounts.google.com" && claims.iss !== "accounts.google.com") throw new Error("Unexpected token issuer.");
   if (!claims.exp || claims.exp * 1000 < Date.now()) throw new Error("The sign-in expired. Try again.");
   if (!claims.sub || !claims.email) throw new Error("Google did not share an email address.");
-  if (claims.email_verified === false) throw new Error("Verify your Google email address first.");
+  // Must be confirmed, not merely "not denied": an email decides who the
+  // admin is, so an account Google has not verified signs in as nobody.
+  if (claims.email_verified !== true) throw new Error("Verify your Google email address first.");
   return {
     sub: claims.sub,
     email: claims.email.toLowerCase(),

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
-import { isOwner, keyStatus, removeKeys, restoreServerKeys, saveKeys } from "@/lib/auth/users";
+import { usesServerKeys, keyStatus, removeKeys, restoreServerKeys, saveKeys } from "@/lib/auth/users";
 import { verifyKey } from "@/lib/auth/verify-key";
 import type { KeyField } from "@/lib/keys";
 import { INTEGRATION_BY_ID, type IntegrationId } from "@/lib/keys-catalog";
@@ -14,7 +14,7 @@ export async function GET() {
 
 /**
  * Check and save one integration's key(s): { integration, values: { field: value } }.
- * The owner can also switch a server key back on: { integration, restoreServer: true }.
+ * The account linked to the server's keys can also switch one back on: { integration, restoreServer: true }.
  */
 export async function PUT(req: NextRequest) {
   return withUser(async (user) => {
@@ -22,7 +22,7 @@ export async function PUT(req: NextRequest) {
     const integ = INTEGRATION_BY_ID.get(body.integration as IntegrationId);
     if (!integ) return NextResponse.json({ ok: false, error: "Unknown key type." }, { status: 400 });
     if (body.restoreServer) {
-      if (!isOwner(user)) return NextResponse.json({ ok: false, error: "Only the owner has server keys." }, { status: 403 });
+      if (!usesServerKeys(user)) return NextResponse.json({ ok: false, error: "Only the account linked to the server's keys can do this." }, { status: 403 });
       await restoreServerKeys(user.id, integ.fields.map((f) => f.field));
       return NextResponse.json({ ok: true, keys: await keyStatus(user) });
     }

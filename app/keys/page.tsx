@@ -1,6 +1,6 @@
 import { Lock } from "lucide-react";
 import { KeysManager } from "@/components/keys-manager";
-import { isOwner, requireUser } from "@/lib/auth";
+import { requireUser, usesServerKeys } from "@/lib/auth";
 import { keyStatus } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const metadata = { title: "Keys" };
 
 export default async function KeysPage() {
   const user = await requireUser();
-  const owner = isOwner(user);
+  const owner = usesServerKeys(user);
   const status = await keyStatus(user);
 
   return (
@@ -24,7 +24,7 @@ export default async function KeysPage() {
         </p>
         {owner && (
           <p className="mt-2 rounded-xl bg-hair/[0.05] px-3 py-2 text-xs text-muted">
-            You&apos;re signed in as the owner, so the server&apos;s keys show as connected here. Change one to use a different key, or remove it to switch it off for your account. No other account can use them.
+            This account is linked to DeepField&apos;s own keys, so they show as connected here. Change one to use a different key, or remove it to switch it off for your account. No other account can use them.
           </p>
         )}
       </div>

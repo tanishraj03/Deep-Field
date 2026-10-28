@@ -19,7 +19,9 @@ Everyone signs in with Google, picks a username, and answers up to five skippabl
 
 DeepField is **bring your own key**. Every model call, YouTube search and Reddit request runs inside the signed-in user's key scope (`lib/keys.ts`), so nobody spends anyone else's credits. Outside a user's request the server has no keys at all. Saved keys are checked with the provider, encrypted with AES-256-GCM under `AUTH_SECRET`, and never sent back to the browser.
 
-The keys in `.env.local` / Vercel are the **server's own**. Only the account `OWNER_EMAIL` (default `tanish@yaas.studio`) can use them, as a fallback for any key it hasn't added itself. The scheduled daily scan uses them too. Nobody else's sign-in ever does.
+The keys in `.env.local` / Vercel are the **server's own**. Only the account `SERVER_KEYS_EMAIL` (default `tanish@yaas.studio`; `OWNER_EMAIL` still works) can use them, as a fallback for any key it hasn't added itself. The scheduled daily scan uses them too. Nobody else's sign-in ever does.
+
+**Admin.** One account, `tanishraj05@gmail.com`, has the service dashboard at `/admin`: who signed up and when, sign-ins, who's active and how much they use it, suspending and restoring accounts, opening or closing sign-ups, letting people refresh scans or not, an announcement banner for everyone, the daily scan time, and a log of every change made there. The address is fixed in `lib/auth/admin-email.ts`, not in a setting, so nothing outside the code can add a second admin. Everyone else gets a 404 at `/admin`, from `proxy.ts` and again from the pages and API routes.
 
 Scans are shared: everyone sees the same conversations, tailored only in order and filters. Rescanning needs an AI key of your own, so a keyless rescan can't replace AI-grouped conversations with keyword groups for everyone.
 
@@ -45,7 +47,7 @@ npm run scan -- --no-ai        # keyword grouping, no model calls
 
 Switch models from the picker in the assistant. Each is tagged with what it's best at:
 
-Each user adds these keys on the Keys page. The env names are the server's own keys, for the owner and the scheduler.
+Each user adds these keys on the Keys page. The env names are the server's own keys, for the server-keys account and the scheduler.
 
 | Model | Tag | Key | Cost |
 |---|---|---|---|
@@ -78,7 +80,7 @@ Nothing is estimated: a number a platform didn't report is left blank.
 
 ## Daily scan
 
-A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel). It calls the app with that secret instead of a sign-in, and scans with the server's keys. Only the owner can change the time.
+A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel). It calls the app with that secret instead of a sign-in, and scans with the server's keys. Only the admin can change the time.
 
 ## Deploy
 

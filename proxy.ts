@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ADMIN_EMAIL } from "@/lib/auth/admin-email";
 import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 /**
@@ -27,6 +28,15 @@ export function proxy(req: NextRequest) {
     const login = new URL("/login", req.url);
     if (path !== "/") login.searchParams.set("next", path + req.nextUrl.search);
     return NextResponse.redirect(login);
+  }
+  // The service dashboard is the admin's alone. Anyone else signed in gets the
+  // same 404 as a page that doesn't exist, before any of it runs. The session
+  // is signed, so its email is the one Google verified at sign-in; the pages
+  // and API routes check the stored account again behind this.
+  if ((path === "/admin" || path.startsWith("/admin/") || path.startsWith("/api/admin/")) && session.email.toLowerCase() !== ADMIN_EMAIL) {
+    return api
+      ? NextResponse.json({ ok: false, error: "Not found." }, { status: 404 })
+      : NextResponse.rewrite(new URL("/not-found", req.url), { status: 404 });
   }
   if (!api && !session.onb && path !== "/welcome") return NextResponse.redirect(new URL("/welcome", req.url));
   return NextResponse.next();

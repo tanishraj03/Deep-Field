@@ -4,6 +4,9 @@ import { envKeys, KEY_FIELDS, NO_KEYS, type KeyField, type KeySet } from "@/lib/
 import { INTEGRATIONS, type IntegrationId, type IntegrationStatus } from "@/lib/keys-catalog";
 import { EMPTY_PREFS, type FeedPrefs } from "@/lib/prefs";
 import { store } from "@/lib/store";
+import { ADMIN_EMAIL } from "./admin-email";
+
+export { ADMIN_EMAIL } from "./admin-email";
 
 /**
  * Users, their usernames and the keys they bring, as documents in the same
@@ -27,14 +30,24 @@ export interface User {
   prefs: FeedPrefs;
   createdAt: string;
   lastLoginAt: string;
+  /** Sign-ins so far. Missing on accounts made before it was counted. */
+  loginCount?: number;
+  /** Set by the admin: this account is signed out and cannot sign back in. */
+  suspended?: { at: string; reason: string | null } | null;
 }
 
 const userKey = (uid: string) => `user:${uid}`;
 const nameKey = (username: string) => `username:${username.toLowerCase()}`;
 const keysKey = (uid: string) => `keys:${uid}`;
 
-/** The one account allowed to spend the server's own keys. */
-export const isOwner = (u: Pick<User, "email"> | null | undefined) => !!u && u.email.toLowerCase() === config.auth.ownerEmail;
+export const isAdmin = (u: Pick<User, "email"> | null | undefined) => !!u && u.email.toLowerCase() === ADMIN_EMAIL;
+
+/**
+ * The one account whose requests may spend the server's own keys (the keys
+ * from before sign-in existed). Not an admin: admin access is separate and
+ * lives in lib/auth/admin.ts.
+ */
+export const usesServerKeys = (u: Pick<User, "email"> | null | undefined) => !!u && u.email.toLowerCase() === config.auth.serverKeysEmail;
 
 export async function getUser(uid: string): Promise<User | null> {
   const doc = await store.get<User>(userKey(uid));
@@ -46,11 +59,27 @@ export async function upsertGoogleUser(g: { sub: string; email: string; name: st
   const id = `g:${g.sub}`;
   const now = new Date().toISOString();
   const existing = await getUser(id);
+  const loginCount = (existing?.loginCount ?? 0) + 1;
   const user: User = existing
-    ? { ...existing, email: g.email, name: g.name, picture: g.picture, lastLoginAt: now }
-    : { id, email: g.email, name: g.name, picture: g.picture, username: null, prefs: EMPTY_PREFS, createdAt: now, lastLoginAt: now };
+    ? { ...existing, email: g.email, name: g.name, picture: g.picture, lastLoginAt: now, loginCount }
+    : { id, email: g.email, name: g.name, picture: g.picture, username: null, prefs: EMPTY_PREFS, createdAt: now, lastLoginAt: now, loginCount };
   await store.set(userKey(id), user);
   return user;
+}
+
+/** Every account, for the admin's list. */
+export async function listUsers(): Promise<User[]> {
+  const docs = await store.list<User>("user:");
+  return docs.map((d) => ({ ...d.value, prefs: { ...EMPTY_PREFS, ...d.value.prefs } }));
+}
+
+/** Suspend an account, or lift a suspension with null. Takes effect on that person's next request. */
+export async function setSuspended(uid: string, suspended: User["suspended"]): Promise<User | null> {
+  const user = await getUser(uid);
+  if (!user) return null;
+  const next = { ...user, suspended };
+  await store.set(userKey(uid), next);
+  return next;
 }
 
 /* ───────────── usernames ───────────── */
@@ -139,7 +168,7 @@ export async function savedKeys(uid: string): Promise<KeySet> {
  */
 export async function keysFor(user: User): Promise<KeySet> {
   const [stored, own] = await Promise.all([storedKeys(user.id), savedKeys(user.id)]);
-  if (!isOwner(user)) return own;
+  if (!usesServerKeys(user)) return own;
   const server = envKeys();
   const off = new Set(stored.off ?? []);
   return Object.fromEntries(KEY_FIELDS.map((f) => [f, own[f] || (off.has(f) ? "" : server[f])])) as unknown as KeySet;
@@ -165,7 +194,7 @@ export async function removeKeys(user: User, fields: KeyField[]): Promise<void> 
   const stored = await storedKeys(user.id);
   const hadOwn = fields.some((f) => stored[f]);
   for (const f of fields) delete stored[f];
-  if (!hadOwn && isOwner(user)) stored.off = [...new Set([...(stored.off ?? []), ...fields])];
+  if (!hadOwn && usesServerKeys(user)) stored.off = [...new Set([...(stored.off ?? []), ...fields])];
   await store.set(keysKey(user.id), stored);
 }
 
@@ -175,9 +204,21 @@ export async function restoreServerKeys(uid: string, fields: KeyField[]): Promis
   await store.set(keysKey(uid), stored);
 }
 
+/**
+ * Which integrations each person has saved a key for, by uid: names only, for
+ * the admin. The keys themselves are never read here.
+ */
+export async function savedIntegrationsByUser(): Promise<Map<string, IntegrationId[]>> {
+  const docs = await store.list<StoredKeys>("keys:");
+  return new Map(docs.map((d) => [
+    d.key.slice("keys:".length),
+    INTEGRATIONS.filter((i) => i.fields.every((f) => d.value[f.field]?.v)).map((i) => i.id as IntegrationId),
+  ]));
+}
+
 export async function keyStatus(user: User): Promise<IntegrationStatus[]> {
   const [stored, own] = await Promise.all([storedKeys(user.id), savedKeys(user.id)]);
-  const server = isOwner(user) ? envKeys() : NO_KEYS;
+  const server = usesServerKeys(user) ? envKeys() : NO_KEYS;
   const off = new Set(stored.off ?? []);
   return INTEGRATIONS.map((i) => {
     const fields = i.fields.map((f) => f.field);

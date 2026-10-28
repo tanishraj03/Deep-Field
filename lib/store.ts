@@ -25,6 +25,10 @@ interface Backend {
 }
 
 const TABLE = "app_settings";
+const LIST_PAGE = 1000;
+const LIST_MAX = 20_000;
+/** A prefix is literal text: % and _ are LIKE wildcards, and \\ escapes them. */
+const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 class SupabaseBackend implements Backend {
   readonly id = "supabase" as const;
@@ -50,10 +54,19 @@ class SupabaseBackend implements Backend {
     if (error) throw new Error(`Store write failed: ${error.message}`);
   }
   async list<T>(prefix: string) {
-    const { data, error } = await this.db.from(TABLE)
-      .select("key, value, updated_at").like("key", `${prefix}%`).limit(500);
-    if (error) throw new Error(`Store list failed: ${error.message}`);
-    return (data ?? []).map((r) => ({ key: r.key, value: r.value as T, updatedAt: r.updated_at }));
+    // A page at a time, in key order so pages never skip or repeat a row:
+    // one call used to stop at 500, which would silently drop people from the
+    // admin's list once there were more.
+    const out: StoredDoc<T>[] = [];
+    for (let from = 0; from < LIST_MAX; from += LIST_PAGE) {
+      const { data, error } = await this.db.from(TABLE)
+        .select("key, value, updated_at").like("key", `${escapeLike(prefix)}%`)
+        .order("key").range(from, from + LIST_PAGE - 1);
+      if (error) throw new Error(`Store list failed: ${error.message}`);
+      for (const r of data ?? []) out.push({ key: r.key, value: r.value as T, updatedAt: r.updated_at });
+      if (!data || data.length < LIST_PAGE) break;
+    }
+    return out;
   }
   async remove(key: string) {
     await this.db.from(TABLE).delete().eq("key", key);

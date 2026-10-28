@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
+import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, TriangleAlert } from "lucide-react";
+import type { PlatformSettings } from "@/lib/platform";
 import { cn, SIDEBAR_COOKIE } from "@/lib/utils";
 import { Ambient } from "./ambient";
 import { useTheme } from "./theme";
@@ -21,10 +22,13 @@ const MORE = [
   { href: "/help", label: "Help & FAQ", icon: CircleHelp },
 ];
 
-export interface Account { username: string; name: string; email: string; picture: string | null; owner: boolean }
+export interface Account { username: string; name: string; email: string; picture: string | null; admin: boolean }
 
-/** Screens shown without navigation: signing in and onboarding. */
-const BARE = ["/login", "/welcome"];
+/** Screens shown without navigation: signing in, onboarding and the admin's service dashboard, which has its own. */
+const BARE = ["/login", "/welcome", "/admin"];
+
+/** The admin's way across to the service dashboard. Only rendered for the admin; the page checks again. */
+const ADMIN_LINK = { href: "/admin", label: "Service dashboard", icon: ShieldCheck };
 
 function isActive(path: string, href: string) {
   if (href === "/") return path === "/" || path.startsWith("/topic");
@@ -109,6 +113,7 @@ function AccountMenu({ account, compact, rail }: { account: Account; compact?: b
   }, [open]);
 
   const items = [
+    ...(account.admin ? [ADMIN_LINK] : []),
     { href: "/welcome?edit=1", label: "Feed preferences", icon: SlidersHorizontal },
     ...MORE,
     { href: "/settings", label: "Settings", icon: Settings },
@@ -135,7 +140,7 @@ function AccountMenu({ account, compact, rail }: { account: Account; compact?: b
             className={cn("card absolute z-50 w-60 p-1.5 shadow-2xl", compact ? "right-0 top-full mt-2" : "bottom-full left-0 mb-2")}>
             <div className="px-2.5 pb-2 pt-1.5">
               <p className="truncate text-[0.8125rem] font-semibold">{account.name}</p>
-              <p className="truncate text-[0.6875rem] text-faint">{account.email}{account.owner ? " · owner" : ""}</p>
+              <p className="truncate text-[0.6875rem] text-faint">{account.email}{account.admin ? " · admin" : ""}</p>
             </div>
             {items.map((i) => (
               <Link key={i.href} href={i.href} role="menuitem"
@@ -178,7 +183,21 @@ function RailLink({ href, label, icon: Icon, active, collapsed, small, layoutId 
   );
 }
 
-export function Shell({ children, account, initialCollapsed = false }: { children: React.ReactNode; account: Account | null; initialCollapsed?: boolean }) {
+/** The admin's announcement, across the top of every screen. */
+function AnnouncementBar({ announcement }: { announcement: NonNullable<PlatformSettings["announcement"]> }) {
+  const warning = announcement.tone === "warning";
+  const Icon = warning ? TriangleAlert : Megaphone;
+  return (
+    <div role="status" className={cn("flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-[0.8125rem]", warning ? "bg-ember/10 text-ink" : "bg-accent/10 text-ink")}>
+      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", warning ? "text-ember" : "text-accent")} />
+      <p className="min-w-0 whitespace-pre-line">{announcement.text}</p>
+    </div>
+  );
+}
+
+export function Shell({ children, account, announcement = null, initialCollapsed = false }: {
+  children: React.ReactNode; account: Account | null; announcement?: PlatformSettings["announcement"]; initialCollapsed?: boolean;
+}) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const toggle = useCallback(() => setCollapsed((c) => !c), []);
@@ -225,6 +244,7 @@ export function Shell({ children, account, initialCollapsed = false }: { childre
         </nav>
         <nav className="mt-6 space-y-0.5 border-t pt-4" aria-label="More">
           {MORE.map((n) => <RailLink key={n.href} {...n} active={path.startsWith(n.href)} collapsed={collapsed} small />)}
+          {account.admin && <RailLink {...ADMIN_LINK} active={false} collapsed={collapsed} small />}
         </nav>
         <div className="mt-auto space-y-3">
           <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "justify-between px-1")}>
@@ -243,7 +263,12 @@ export function Shell({ children, account, initialCollapsed = false }: { childre
       </header>
 
       <main className={cn("min-w-0 flex-1", fullBleed ? "" : "px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8")}>
-        {fullBleed ? children : <div className="mx-auto max-w-[78rem]">{children}</div>}
+        {fullBleed ? children : (
+          <div className="mx-auto max-w-[78rem]">
+            {announcement && <div className="mb-6"><AnnouncementBar announcement={announcement} /></div>}
+            {children}
+          </div>
+        )}
       </main>
 
       <nav

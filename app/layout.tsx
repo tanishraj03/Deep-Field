@@ -5,7 +5,8 @@ import { RegionProvider } from "@/components/region";
 import { cookies } from "next/headers";
 import { Shell } from "@/components/shell";
 import { ThemeProvider } from "@/components/theme";
-import { currentUser, isOwner } from "@/lib/auth";
+import { currentUser, isAdmin } from "@/lib/auth";
+import { getPlatform } from "@/lib/platform";
 import { SIDEBAR_COOKIE } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
@@ -26,9 +27,9 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [user, jar] = await Promise.all([currentUser(), cookies()]);
+  const [user, jar, platform] = await Promise.all([currentUser(), cookies(), getPlatform()]);
   const account = user?.username
-    ? { username: user.username, name: user.name, email: user.email, picture: user.picture, owner: isOwner(user) }
+    ? { username: user.username, name: user.name, email: user.email, picture: user.picture, admin: isAdmin(user) }
     : null;
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
@@ -43,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="font-sans">
         <ThemeProvider>
           <RegionProvider fallback={user?.prefs.region ?? null}>
-            <Shell account={account} initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "closed"}>{children}</Shell>
+            <Shell account={account} announcement={platform.announcement} initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "closed"}>{children}</Shell>
           </RegionProvider>
         </ThemeProvider>
       </body>

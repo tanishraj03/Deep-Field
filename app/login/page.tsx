@@ -48,7 +48,9 @@ function GoogleMark() {
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
-  const [{ error, next }, user, preview] = await Promise.all([searchParams, currentUser(), previewTopics()]);
+  const [{ error: rawError, next }, user, preview] = await Promise.all([searchParams, currentUser(), previewTopics()]);
+  // Shown as plain text, but it arrives in the address, so it is kept short.
+  const error = typeof rawError === "string" ? rawError.slice(0, 160) : undefined;
   if (user) redirect(user.username ? safeNext(next ?? null) : "/welcome");
   const ready = googleConfigured();
   const href = `/api/auth/login${next ? `?next=${encodeURIComponent(safeNext(next))}` : ""}`;
