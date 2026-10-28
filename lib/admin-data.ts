@@ -1,14 +1,20 @@
-import { isAdmin, listUsers, savedIntegrationsByUser, usesServerKeys } from "@/lib/auth/users";
+import { isAdmin, savedIntegrationsFrom, usersFrom, usesServerKeys } from "@/lib/auth/users";
 import { INTEGRATION_BY_ID } from "@/lib/keys-catalog";
 import { nicheLabel } from "@/lib/niches";
-import { adminLog, getPlatform, recentLogins, type Activity } from "@/lib/platform";
-import { loadSummaries } from "@/lib/pulse/scan";
-import { getSchedule, nextRun } from "@/lib/schedule";
+import {
+  ADMIN_LOG_KEY, LOGINS_KEY, platformFrom, SETTINGS_KEY,
+  type Activity, type AdminEntry, type LoginEntry, type PlatformSettings,
+} from "@/lib/platform";
+import { nextRun, SCHEDULE_KEY, scheduleFrom, type Schedule } from "@/lib/schedule";
 import { store } from "@/lib/store";
 
 /**
- * Everything the service dashboard shows, read in a handful of list queries
- * rather than one per person. Server only: it reads every account.
+ * Everything the service dashboard shows, in three round trips to the store,
+ * made at once: every account with its activity, the four small documents
+ * (switches, schedule, sign-ins, admin log), and when each niche was last
+ * scanned. Each trip costs ~200 ms, so this is what keeps the page quick; it
+ * used to make ten, and read every scan in full to learn one timestamp.
+ * Server only: it reads every account.
  */
 
 export interface PersonRow {
@@ -35,21 +41,23 @@ export interface PersonRow {
 const DAY = 86_400_000;
 
 export async function loadAdminData() {
-  const [users, keyed, seenDocs, activityDocs, logins, log, platform, schedule, pulse, storage] = await Promise.all([
-    listUsers(),
-    savedIntegrationsByUser(),
-    store.list<{ at: string }>("seen:"),
-    store.list<Activity>("activity:"),
-    recentLogins(),
-    adminLog(),
-    getPlatform(),
-    getSchedule(),
-    loadSummaries().catch(() => null),
+  const [accounts, singles, scans, storage] = await Promise.all([
+    store.listMany(["user:", "seen:", "activity:", "keys:"]),
+    store.getMany([SETTINGS_KEY, SCHEDULE_KEY, LOGINS_KEY, ADMIN_LOG_KEY]),
+    store.stamps("scan:"),
     store.status(),
   ]);
 
-  const seen = new Map(seenDocs.map((d) => [d.key.slice("seen:".length), d.value.at]));
-  const activity = new Map(activityDocs.map((d) => [d.key.slice("activity:".length), d.value]));
+  const under = (prefix: string) => accounts.filter((d) => d.key.startsWith(prefix));
+  const one = <T,>(key: string) => singles.find((d) => d.key === key)?.value as T | undefined;
+  const users = usersFrom(under("user:"));
+  const keyed = savedIntegrationsFrom(under("keys:"));
+  const seen = new Map(under("seen:").map((d) => [d.key.slice("seen:".length), (d.value as { at: string }).at]));
+  const activity = new Map(under("activity:").map((d) => [d.key.slice("activity:".length), d.value as Activity]));
+  const logins = one<LoginEntry[]>(LOGINS_KEY) ?? [];
+  const log = one<AdminEntry[]>(ADMIN_LOG_KEY) ?? [];
+  const platform = platformFrom(one<Partial<PlatformSettings>>(SETTINGS_KEY));
+  const schedule = scheduleFrom(one<Partial<Schedule>>(SCHEDULE_KEY));
 
   const people: PersonRow[] = users
     .map((u) => ({
@@ -74,8 +82,9 @@ export async function loadAdminData() {
 
   const now = Date.now();
   const lastActive = (p: PersonRow) => Date.parse(p.lastSeenAt ?? p.lastLoginAt);
-  const scans = pulse?.scans ?? [];
-  const scanTimes = scans.map((s) => Date.parse(s.scannedAt)).filter(Number.isFinite);
+  // Only the niches' own scans, not the cross-internet signals stored beside them.
+  const nicheScans = scans.filter((s) => /^scan:[a-z0-9-]+$/.test(s.key));
+  const scanTimes = nicheScans.map((s) => Date.parse(s.updatedAt)).filter(Number.isFinite);
 
   return {
     people,
@@ -97,8 +106,7 @@ export async function loadAdminData() {
       chats: people.reduce((n, p) => n + (p.activity.chats ?? 0), 0),
     },
     data: {
-      niches: scans.length,
-      topics: scans.reduce((n, s) => n + s.topics.length, 0),
+      niches: nicheScans.length,
       oldestScan: scanTimes.length ? new Date(Math.min(...scanTimes)).toISOString() : null,
       newestScan: scanTimes.length ? new Date(Math.max(...scanTimes)).toISOString() : null,
     },

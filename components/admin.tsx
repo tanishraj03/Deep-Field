@@ -19,6 +19,52 @@ async function send(url: string, method: "POST" | "PUT", body: unknown): Promise
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 
+/* ───────────── tabs ───────────── */
+
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "people", label: "People" },
+  { id: "logins", label: "Sign-ins" },
+  { id: "platform", label: "Platform" },
+  { id: "log", label: "Admin log" },
+] as const;
+export type AdminTab = (typeof TABS)[number]["id"];
+
+/**
+ * The dashboard's sections. All of them arrive rendered in one response, so
+ * switching is instant and asks the server for nothing; hidden ones stay
+ * mounted, so a search typed in People is still there on the way back. The
+ * address follows along (replaceState), so a reload opens the same tab.
+ */
+export function AdminTabs({ initial, panels, counts }: {
+  initial: AdminTab; panels: Record<AdminTab, React.ReactNode>; counts?: Partial<Record<AdminTab, number>>;
+}) {
+  const [tab, setTab] = useState<AdminTab>(initial);
+  const open = (id: AdminTab) => {
+    setTab(id);
+    window.history.replaceState(null, "", id === "overview" ? "/admin" : `/admin?tab=${id}`);
+  };
+  return (
+    <>
+      <div role="tablist" aria-label="Dashboard sections" className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b px-1">
+        {TABS.map((t) => (
+          <button key={t.id} role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} onClick={() => open(t.id)}
+            className={cn("-mb-px shrink-0 border-b-2 px-3 py-2.5 text-[0.8125rem] font-medium transition-colors",
+              tab === t.id ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink")}>
+            {t.label}
+            {counts?.[t.id] !== undefined && <span className="num ml-1.5 text-faint">{counts[t.id]}</span>}
+          </button>
+        ))}
+      </div>
+      {TABS.map((t) => (
+        <div key={t.id} role="tabpanel" id={`panel-${t.id}`} aria-labelledby={`tab-${t.id}`} hidden={tab !== t.id}>
+          {panels[t.id]}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /* ───────────── people ───────────── */
 
 /** Everyone who has signed in, searchable, with suspend and restore. */

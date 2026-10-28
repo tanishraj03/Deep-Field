@@ -17,7 +17,8 @@ export interface Schedule {
   lastRunAt: string | null;
 }
 
-const KEY = "settings:schedule";
+export const SCHEDULE_KEY = "settings:schedule";
+const KEY = SCHEDULE_KEY;
 const DEFAULT: Schedule = { enabled: true, hour: 9, lastRun: null, lastRunAt: null };
 const IST_MS = 5.5 * 3_600_000;
 
@@ -27,9 +28,12 @@ export function istNow(at = Date.now()) {
   return { hour: d.getUTCHours(), date: d.toISOString().slice(0, 10) };
 }
 
+/** The schedule from its stored document, defaults filled in. */
+export const scheduleFrom = (value: Partial<Schedule> | null | undefined): Schedule => ({ ...DEFAULT, ...(value ?? {}) });
+
 export async function getSchedule(): Promise<Schedule> {
   const doc = await store.get<Partial<Schedule>>(KEY).catch(() => null);
-  return { ...DEFAULT, ...(doc?.value ?? {}) };
+  return scheduleFrom(doc?.value);
 }
 
 export async function saveSchedule(patch: { enabled?: boolean; hour?: number }): Promise<Schedule> {

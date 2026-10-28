@@ -21,6 +21,12 @@ interface Backend {
   get<T>(key: string): Promise<StoredDoc<T> | null>;
   set<T>(key: string, value: T): Promise<void>;
   list<T>(prefix: string): Promise<StoredDoc<T>[]>;
+  /** Several exact keys in one round trip; missing ones are left out. */
+  getMany(keys: string[]): Promise<StoredDoc<unknown>[]>;
+  /** Every document under any of several prefixes, in one round trip per page. */
+  listMany(prefixes: string[]): Promise<StoredDoc<unknown>[]>;
+  /** Keys and update times under a prefix, without the values: cheap for big documents. */
+  stamps(prefix: string): Promise<{ key: string; updatedAt: string }[]>;
   remove(key: string): Promise<void>;
 }
 
@@ -68,6 +74,34 @@ class SupabaseBackend implements Backend {
     }
     return out;
   }
+  async getMany(keys: string[]) {
+    if (!keys.length) return [];
+    const { data, error } = await this.db.from(TABLE).select("key, value, updated_at").in("key", keys);
+    if (error) throw new Error(`Store read failed: ${error.message}`);
+    return (data ?? []).map((r) => ({ key: r.key, value: r.value as unknown, updatedAt: r.updated_at }));
+  }
+  async listMany(prefixes: string[]) {
+    // Quoted, because a colon is reserved in PostgREST's filter syntax; and
+    // plain prefixes only, so nothing in one can change the filter's meaning.
+    if (prefixes.some((p) => !/^[a-z]+:$/.test(p))) throw new Error(`Unsupported prefix in ${prefixes.join(", ")}`);
+    const filter = prefixes.map((p) => `key.like."${p}*"`).join(",");
+    const out: StoredDoc<unknown>[] = [];
+    for (let from = 0; from < LIST_MAX; from += LIST_PAGE) {
+      const { data, error } = await this.db.from(TABLE)
+        .select("key, value, updated_at").or(filter)
+        .order("key").range(from, from + LIST_PAGE - 1);
+      if (error) throw new Error(`Store list failed: ${error.message}`);
+      for (const r of data ?? []) out.push({ key: r.key, value: r.value as unknown, updatedAt: r.updated_at });
+      if (!data || data.length < LIST_PAGE) break;
+    }
+    return out;
+  }
+  async stamps(prefix: string) {
+    const { data, error } = await this.db.from(TABLE)
+      .select("key, updated_at").like("key", `${escapeLike(prefix)}%`).order("key").limit(LIST_PAGE);
+    if (error) throw new Error(`Store list failed: ${error.message}`);
+    return (data ?? []).map((r) => ({ key: r.key as string, updatedAt: r.updated_at as string }));
+  }
   async remove(key: string) {
     await this.db.from(TABLE).delete().eq("key", key);
   }
@@ -112,6 +146,19 @@ class FileBackend implements Backend {
       .filter(([k]) => k.startsWith(prefix))
       .map(([key, v]) => ({ key, value: v.value as T, updatedAt: v.updatedAt }));
   }
+  async getMany(keys: string[]) {
+    const all = await this.load();
+    return keys.filter((k) => all[k]).map((key) => ({ key, value: all[key].value, updatedAt: all[key].updatedAt }));
+  }
+  async listMany(prefixes: string[]) {
+    const all = await this.load();
+    return Object.entries(all)
+      .filter(([k]) => prefixes.some((p) => k.startsWith(p)))
+      .map(([key, v]) => ({ key, value: v.value, updatedAt: v.updatedAt }));
+  }
+  async stamps(prefix: string) {
+    return (await this.list<unknown>(prefix)).map(({ key, updatedAt }) => ({ key, updatedAt }));
+  }
   async remove(key: string) {
     const all = await this.load();
     delete all[key];
@@ -145,6 +192,9 @@ export const store = {
   async get<T>(key: string) { return (await resolve()).get<T>(key); },
   async set<T>(key: string, value: T) { return (await resolve()).set(key, value); },
   async list<T>(prefix: string) { return (await resolve()).list<T>(prefix); },
+  async getMany(keys: string[]) { return (await resolve()).getMany(keys); },
+  async listMany(prefixes: string[]) { return (await resolve()).listMany(prefixes); },
+  async stamps(prefix: string) { return (await resolve()).stamps(prefix); },
   async remove(key: string) { return (await resolve()).remove(key); },
   async status() {
     const b = await resolve();

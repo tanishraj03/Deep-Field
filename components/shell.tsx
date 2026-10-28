@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, TriangleAlert } from "lucide-react";
+import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, TriangleAlert, X } from "lucide-react";
 import type { PlatformSettings } from "@/lib/platform";
-import { cn, SIDEBAR_COOKIE } from "@/lib/utils";
+import { cn, DISMISSED_COOKIE, SIDEBAR_COOKIE } from "@/lib/utils";
 import { Ambient } from "./ambient";
 import { useTheme } from "./theme";
 
@@ -183,14 +183,26 @@ function RailLink({ href, label, icon: Icon, active, collapsed, small, layoutId 
   );
 }
 
-/** The admin's announcement, across the top of every screen. */
+/** The admin's announcement, across the top of every screen, until you close it. */
 function AnnouncementBar({ announcement }: { announcement: NonNullable<PlatformSettings["announcement"]> }) {
+  const [closed, setClosed] = useState(false);
+  if (closed) return null;
   const warning = announcement.tone === "warning";
   const Icon = warning ? TriangleAlert : Megaphone;
+  const close = () => {
+    document.cookie = `${DISMISSED_COOKIE}=${announcement.at}; path=/; max-age=31536000; samesite=lax`;
+    setClosed(true);
+  };
   return (
-    <div role="status" className={cn("flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-[0.8125rem]", warning ? "bg-ember/10 text-ink" : "bg-accent/10 text-ink")}>
-      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", warning ? "text-ember" : "text-accent")} />
-      <p className="min-w-0 whitespace-pre-line">{announcement.text}</p>
+    <div className="mb-6">
+      <div role="status" className={cn("flex items-start gap-2 rounded-xl py-2.5 pl-3.5 pr-2 text-[0.8125rem]", warning ? "bg-ember/10 text-ink" : "bg-accent/10 text-ink")}>
+        <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", warning ? "text-ember" : "text-accent")} />
+        <p className="min-w-0 flex-1 whitespace-pre-line">{announcement.text}</p>
+        <button onClick={close} aria-label="Close announcement" title="Close"
+          className="-my-1 shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-hair/[0.08] hover:text-ink">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -265,7 +277,7 @@ export function Shell({ children, account, announcement = null, initialCollapsed
       <main className={cn("min-w-0 flex-1", fullBleed ? "" : "px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8")}>
         {fullBleed ? children : (
           <div className="mx-auto max-w-[78rem]">
-            {announcement && <div className="mb-6"><AnnouncementBar announcement={announcement} /></div>}
+            {announcement && <AnnouncementBar key={announcement.at} announcement={announcement} />}
             {children}
           </div>
         )}

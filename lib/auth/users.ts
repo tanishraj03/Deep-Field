@@ -69,9 +69,15 @@ export async function upsertGoogleUser(g: { sub: string; email: string; name: st
 
 /** Every account, for the admin's list. */
 export async function listUsers(): Promise<User[]> {
-  const docs = await store.list<User>("user:");
-  return docs.map((d) => ({ ...d.value, prefs: { ...EMPTY_PREFS, ...d.value.prefs } }));
+  return usersFrom(await store.list<User>("user:"));
 }
+
+/** Accounts from "user:" documents already read. */
+export const usersFrom = (docs: { value: unknown }[]): User[] =>
+  docs.map((d) => {
+    const u = d.value as User;
+    return { ...u, prefs: { ...EMPTY_PREFS, ...u.prefs } };
+  });
 
 /** Suspend an account, or lift a suspension with null. Takes effect on that person's next request. */
 export async function setSuspended(uid: string, suspended: User["suspended"]): Promise<User | null> {
@@ -209,11 +215,18 @@ export async function restoreServerKeys(uid: string, fields: KeyField[]): Promis
  * the admin. The keys themselves are never read here.
  */
 export async function savedIntegrationsByUser(): Promise<Map<string, IntegrationId[]>> {
-  const docs = await store.list<StoredKeys>("keys:");
-  return new Map(docs.map((d) => [
-    d.key.slice("keys:".length),
-    INTEGRATIONS.filter((i) => i.fields.every((f) => d.value[f.field]?.v)).map((i) => i.id as IntegrationId),
-  ]));
+  return savedIntegrationsFrom(await store.list<StoredKeys>("keys:"));
+}
+
+/** The same, from "keys:" documents already read. */
+export function savedIntegrationsFrom(docs: { key: string; value: unknown }[]): Map<string, IntegrationId[]> {
+  return new Map(docs.map((d) => {
+    const stored = d.value as StoredKeys;
+    return [
+      d.key.slice("keys:".length),
+      INTEGRATIONS.filter((i) => i.fields.every((f) => stored[f.field]?.v)).map((i) => i.id as IntegrationId),
+    ];
+  }));
 }
 
 export async function keyStatus(user: User): Promise<IntegrationStatus[]> {

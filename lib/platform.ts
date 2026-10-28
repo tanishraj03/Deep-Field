@@ -28,7 +28,12 @@ export interface PlatformSettings {
 
 export const DEFAULT_PLATFORM: PlatformSettings = { signupsOpen: true, userScans: true, announcement: null };
 
-const SETTINGS_KEY = "platform:settings";
+export const SETTINGS_KEY = "platform:settings";
+export const LOGINS_KEY = "audit:logins";
+export const ADMIN_LOG_KEY = "audit:admin";
+
+/** The switches from their stored document, defaults filled in. */
+export const platformFrom = (value: Partial<PlatformSettings> | null | undefined): PlatformSettings => ({ ...DEFAULT_PLATFORM, ...value });
 /** Each server instance re-reads the switches this often, so a change reaches every visitor within it. */
 const SETTINGS_TTL_MS = 30_000;
 let settingsCache: { at: number; value: PlatformSettings } | null = null;
@@ -36,7 +41,7 @@ let settingsCache: { at: number; value: PlatformSettings } | null = null;
 export async function getPlatform(): Promise<PlatformSettings> {
   if (settingsCache && Date.now() - settingsCache.at < SETTINGS_TTL_MS) return settingsCache.value;
   const doc = await store.get<Partial<PlatformSettings>>(SETTINGS_KEY).catch(() => null);
-  const value = { ...DEFAULT_PLATFORM, ...doc?.value };
+  const value = platformFrom(doc?.value);
   settingsCache = { at: Date.now(), value };
   return value;
 }
@@ -110,19 +115,19 @@ async function prepend<T>(key: string, entry: T): Promise<void> {
 }
 
 export async function recordLogin(entry: LoginEntry): Promise<void> {
-  await prepend("audit:logins", entry).catch(() => {});
+  await prepend(LOGINS_KEY, entry).catch(() => {});
 }
 
 export async function recordAdmin(entry: Omit<AdminEntry, "at">): Promise<void> {
-  await prepend<AdminEntry>("audit:admin", { ...entry, at: new Date().toISOString() });
+  await prepend<AdminEntry>(ADMIN_LOG_KEY, { ...entry, at: new Date().toISOString() });
 }
 
 export async function recentLogins(): Promise<LoginEntry[]> {
-  return (await store.get<LoginEntry[]>("audit:logins"))?.value ?? [];
+  return (await store.get<LoginEntry[]>(LOGINS_KEY))?.value ?? [];
 }
 
 export async function adminLog(): Promise<AdminEntry[]> {
-  return (await store.get<AdminEntry[]>("audit:admin"))?.value ?? [];
+  return (await store.get<AdminEntry[]>(ADMIN_LOG_KEY))?.value ?? [];
 }
 
 /** "Chrome on macOS" from a user agent, or null. Coarse on purpose. */

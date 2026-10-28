@@ -232,3 +232,10 @@ export function jaccard(a: string[], b: string[]): number {
 
 /** The sidebar's collapsed state, in a cookie so the server renders the right width and nothing jumps on load. */
 export const SIDEBAR_COOKIE = "df-sidebar";
+
+/**
+ * The announcement someone closed, by its publish time. In a cookie so the
+ * server leaves it out and it never flashes back on load; a new announcement
+ * has a new time, so it shows again.
+ */
+export const DISMISSED_COOKIE = "df-dismissed";

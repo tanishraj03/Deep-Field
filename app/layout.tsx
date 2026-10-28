@@ -7,7 +7,7 @@ import { Shell } from "@/components/shell";
 import { ThemeProvider } from "@/components/theme";
 import { currentUser, isAdmin } from "@/lib/auth";
 import { getPlatform } from "@/lib/platform";
-import { SIDEBAR_COOKIE } from "@/lib/utils";
+import { DISMISSED_COOKIE, SIDEBAR_COOKIE } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
@@ -31,6 +31,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const account = user?.username
     ? { username: user.username, name: user.name, email: user.email, picture: user.picture, admin: isAdmin(user) }
     : null;
+  // Left out for anyone who closed this one.
+  const announcement = platform.announcement && jar.get(DISMISSED_COOKIE)?.value !== platform.announcement.at
+    ? platform.announcement
+    : null;
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
@@ -44,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="font-sans">
         <ThemeProvider>
           <RegionProvider fallback={user?.prefs.region ?? null}>
-            <Shell account={account} announcement={platform.announcement} initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "closed"}>{children}</Shell>
+            <Shell account={account} announcement={announcement} initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "closed"}>{children}</Shell>
           </RegionProvider>
         </ThemeProvider>
       </body>
