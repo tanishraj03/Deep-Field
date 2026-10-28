@@ -23,11 +23,16 @@ const CALL = {
   skip: { label: "Skip", cls: "bg-hair/10 text-muted" },
 } as const;
 
-/** Where each floating card sits, and how it bobs. */
+/**
+ * Where each floating card sits, and how it bobs. Stacked down the column in
+ * three bands, zig-zagging left and right, so no two ever overlap: a card is
+ * at most ~9.5rem tall with a two-line title, and each band is a third of the
+ * column.
+ */
 const SLOTS = [
-  { className: "left-[4%] top-[8%] w-[19rem] rotate-[-3deg]", delay: 0 },
-  { className: "right-[2%] top-[30%] w-[20rem] rotate-[2deg]", delay: 1.2 },
-  { className: "left-[12%] bottom-[10%] w-[18rem] rotate-[1deg]", delay: 2.4 },
+  { className: "left-[2%] top-0 w-[19rem] rotate-[-2deg]", delay: 0 },
+  { className: "right-0 top-[36%] w-[20rem] rotate-[2deg]", delay: 1.2 },
+  { className: "left-[10%] bottom-0 w-[18rem] rotate-[1deg]", delay: 2.4 },
 ];
 
 function Card({ t }: { t: PreviewTopic }) {
@@ -55,7 +60,7 @@ function Card({ t }: { t: PreviewTopic }) {
 
 /**
  * The sign-in screen's right half: three of today's real conversations
- * floating over the radar, swapping one at a time so it feels live.
+ * floating side by side, swapping one at a time so it feels live.
  */
 export function LoginPreview({ topics }: { topics: PreviewTopic[] }) {
   const [shown, setShown] = useState(() => topics.slice(0, SLOTS.length).map((_, i) => i));
@@ -82,9 +87,9 @@ export function LoginPreview({ topics }: { topics: PreviewTopic[] }) {
             animate={{ y: [0, -10, 0] }} transition={{ duration: 6, delay: slot.delay, repeat: Infinity, ease: "easeInOut" }}>
             <AnimatePresence mode="wait">
               <motion.div key={t.id}
-                initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -14, filter: "blur(6px)" }}
+                initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -14, scale: 0.98 }}
                 transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}>
                 <Card t={t} />
               </motion.div>
@@ -92,24 +97,6 @@ export function LoginPreview({ topics }: { topics: PreviewTopic[] }) {
           </motion.div>
         );
       })}
-    </div>
-  );
-}
-
-/** A slow, endless strip of what's trending, for phones and the bottom of the screen. */
-export function TopicTicker({ topics }: { topics: PreviewTopic[] }) {
-  if (!topics.length) return null;
-  const row = [...topics, ...topics];
-  return (
-    <div className="relative overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]">
-      <motion.div className="flex w-max gap-2" animate={{ x: ["0%", "-50%"] }} transition={{ duration: topics.length * 4, repeat: Infinity, ease: "linear" }}>
-        {row.map((t, i) => (
-          <span key={`${t.id}-${i}`} className="card flex shrink-0 items-center gap-2 rounded-pill px-3 py-1.5 text-xs">
-            <span className={`num font-semibold ${t.heat >= 70 ? "text-ember" : "text-ink"}`}>{t.heat}</span>
-            <span className="max-w-[16rem] truncate text-muted">{t.title}</span>
-          </span>
-        ))}
-      </motion.div>
     </div>
   );
 }

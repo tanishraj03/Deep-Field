@@ -213,7 +213,7 @@ export function Shell({ children, account, initialCollapsed = false }: { childre
     <div className="min-h-dvh lg:flex">
       <Ambient />
       <aside className={cn(
-        "sticky top-0 z-30 hidden h-dvh shrink-0 flex-col border-r bg-canvas/55 py-5 backdrop-blur-xl transition-[width] duration-300 ease-ios lg:flex",
+        "sticky top-0 z-30 hidden h-dvh shrink-0 flex-col border-r bg-canvas/55 py-5 transition-[width] duration-300 ease-ios lg:flex",
         collapsed ? "w-[4.25rem] px-2.5" : "w-60 px-3",
       )}>
         <div className={cn("flex items-center", collapsed ? "flex-col gap-3" : "justify-between")}>
