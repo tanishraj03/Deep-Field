@@ -138,7 +138,7 @@ function KeyRow({ i, s, owner, onChange }: { i: Integration; s: IntegrationStatu
             ) : s.serverOff ? (
               <span className="text-faint">Disconnected · the server has a key you can reconnect</span>
             ) : (
-              <span className="text-faint">Not connected</span>
+              <span className="text-faint">Not connected{i.withoutIt && <> · {i.withoutIt}</>}</span>
             )}
           </p>
         </div>

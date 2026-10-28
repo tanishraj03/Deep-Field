@@ -35,7 +35,8 @@ export const config = {
    * Reddit's own API. Optional. With it, conversations carry live upvote and
    * comment counts the moment they are posted; without it, counts come from
    * the Arctic Shift archive and settle about a day and a half after posting.
-   * Create a "script" app at https://www.reddit.com/prefs/apps.
+   * Create a "script" app at https://www.reddit.com/prefs/apps. Since late
+   * 2025 Reddit approves each new app by hand (Responsible Builder Policy).
    */
   reddit: {
     clientId: process.env.REDDIT_CLIENT_ID ?? "",

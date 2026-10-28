@@ -24,6 +24,8 @@ export interface Integration {
   /** Plain steps for the info popover. */
   steps: string[];
   note?: string;
+  /** What still works when it is not connected, shown next to "Not connected". */
+  withoutIt?: string;
 }
 
 export const INTEGRATIONS: Integration[] = [
@@ -119,18 +121,20 @@ export const INTEGRATIONS: Integration[] = [
   {
     id: "reddit", name: "Reddit API", group: "data", free: true,
     unlocks: "Live upvote and comment counts on brand-new threads (otherwise counts settle about 36 hours after posting)",
-    cost: "Free",
+    cost: "Free, but Reddit must approve your app first",
+    withoutIt: "Reddit still works through the public archive",
     fields: [
       { field: "redditClientId", label: "Client id", placeholder: "The string under your app's name" },
       { field: "redditClientSecret", label: "Client secret", placeholder: "secret" },
     ],
     url: "https://www.reddit.com/prefs/apps",
     steps: [
-      "Sign in to Reddit and open reddit.com/prefs/apps.",
-      "Click \"create another app\", choose \"script\", and use http://localhost as the redirect uri.",
-      "The client id is the short string under the app's name; the secret is labelled \"secret\".",
+      "Reddit no longer lets you create a key yourself: since late 2025 every new app needs Reddit's approval under its Responsible Builder Policy.",
+      "If you want to try, sign in to Reddit, open reddit.com/prefs/apps and follow the prompt to request API access. Describe it as personal, non-commercial research.",
+      "If Reddit approves it, create a \"script\" app with http://localhost as the redirect uri.",
+      "The client id is the short string under the app's name; the secret is labelled \"secret\". Paste both here.",
     ],
-    note: "Optional. Without it, Reddit is still read through a public archive.",
+    note: "You can skip this one. Reddit approvals are slow and often refused, and DeepField already reads every Reddit thread, comment and upvote through a free public archive. Only counts on threads under about 36 hours old are missing.",
   },
   {
     id: "instagram", name: "Instagram (Meta Graph API)", group: "data", free: true,
