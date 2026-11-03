@@ -1,4 +1,5 @@
 import type { Comment, Discussion, NicheScan, Post, RegionFilter, Topic, TopicMetrics } from "./types";
+import { jaccard, terms } from "./utils";
 
 /** What a topic looks like through the region filter. */
 export function topicIn(t: Topic, region: RegionFilter): { metrics: TopicMetrics; heat: number; virality: number } {
@@ -14,6 +15,37 @@ export function visibleTopics(scan: NicheScan, region: RegionFilter, rankBy: Ran
 
 export function rankTopics(topics: Topic[], region: RegionFilter, rankBy: RankBy = "heat"): Topic[] {
   return [...topics].sort((a, b) => (topicIn(b, region)[rankBy] ?? 0) - (topicIn(a, region)[rankBy] ?? 0));
+}
+
+/**
+ * The best n topics across niches, with variety: at most two from one niche
+ * (more when only a niche or two are in play), no second copy of a story
+ * another niche also picked up, and no more than two on one theme (say,
+ * "halloween"). Order is still by score; when the rules leave the list
+ * short, the strongest skipped topics fill it.
+ */
+export function bestOf(topics: Topic[], region: RegionFilter, rankBy: RankBy, n: number): Topic[] {
+  const ranked = rankTopics(topics, region, rankBy);
+  const niches = new Set(ranked.map((t) => t.niche)).size;
+  const perNiche = Math.max(2, Math.ceil(n / Math.max(1, niches)));
+  const picked: { t: Topic; words: string[] }[] = [];
+  const perN = new Map<string, number>();
+  const perTerm = new Map<string, number>();
+  const skipped: Topic[] = [];
+  for (const t of ranked) {
+    if (picked.length >= n) break;
+    const words = [...new Set(terms(t.title))];
+    const tooMany = (perN.get(t.niche) ?? 0) >= perNiche;
+    const sameStory = picked.some((p) => jaccard(words, p.words) >= 0.5);
+    const sameTheme = words.some((w) => (perTerm.get(w) ?? 0) >= 2);
+    if (tooMany || sameStory || sameTheme) { if (!sameStory) skipped.push(t); continue; }
+    picked.push({ t, words });
+    perN.set(t.niche, (perN.get(t.niche) ?? 0) + 1);
+    for (const w of words) perTerm.set(w, (perTerm.get(w) ?? 0) + 1);
+  }
+  const out = picked.map((p) => p.t);
+  for (const t of skipped) { if (out.length >= n) break; out.push(t); }
+  return rankTopics(out, region, rankBy);
 }
 
 export function postsFor(t: Topic, scan: Pick<NicheScan, "posts">, region: RegionFilter): Post[] {

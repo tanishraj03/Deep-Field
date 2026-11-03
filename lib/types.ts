@@ -67,6 +67,8 @@ export interface Topic {
   /** Change against the closest topic in the previous scan; null if new. */
   heatDelta: number | null;
   isNew: boolean;
+  /** When this conversation first appeared on the feed, carried from scan to scan. Older scans lack it. */
+  firstSeen?: string;
   /** "ai" when a model grouped it, "rules" when keyword overlap did. */
   groupedBy: "ai" | "rules";
   /** 2-4 words people use when they mention it, what web mentions are counted by. */
@@ -98,7 +100,7 @@ export interface TopicMetrics {
   views: number;
   /** Comments + upvotes/likes + views/100: one number for "how much reaction". */
   engagement: number;
-  /** Engagement per hour since the first post, the velocity behind virality. */
+  /** Engagement per hour over at most the last four days, older reaction faded: the velocity behind virality. */
   perHour: number;
   /** Every post and comment in the grouped threads: each one is somebody talking about it. */
   mentions: number;
@@ -187,8 +189,8 @@ export interface ExploreResult {
   sources: ExploreSourceResult[];
   /** Conversations per day by source, oldest first. */
   daily: { date: string; reddit: number; hackernews: number; news: number; youtube: number }[];
-  /** Wikipedia pageviews per day, as an attention line. */
-  attention: { article: string; url: string; daily: { date: string; views: number }[] } | null;
+  /** Wikipedia pageviews per day for the last 30 days, and the median day of the 60 before. */
+  attention: { article: string; url: string; daily: { date: string; views: number }[]; usual?: number | null } | null;
   posts: Post[];
   communities: { name: string; posts: number; region: RegionCode }[];
   regionSplit: { IN: number; GLOBAL: number };
@@ -211,6 +213,26 @@ export interface ExploreOpportunity {
   score: number;
   call: TopicVerdict["call"];
   signals: string[];
+  /** Is there a story this week, or only the usual chatter about a familiar subject? Absent on older results. */
+  story?: StoryCheck;
+}
+
+/**
+ * The second check on a searched topic, beside reaction and momentum: a lot
+ * of talk about a planet, a celebrity or a sport is normal, and is not by
+ * itself a reason to make something.
+ */
+export interface StoryCheck {
+  /** This week's Wikipedia views against the article's usual day; 1 = normal. Null when there is no article or history. */
+  novelty: number | null;
+  /** Share of the posts found that name the topic in their title, rather than in passing. */
+  relevance: number;
+  /** The words most of those posts share besides the topic itself, and how many of them do. */
+  focus: { phrase: string; share: number } | null;
+  /** Always-on conversation with no new story this week. */
+  evergreen: boolean;
+  /** One line, for the screen. */
+  label: string;
 }
 
 export interface ExploreInsight {

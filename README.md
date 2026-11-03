@@ -72,11 +72,13 @@ Free-tier model ids change often, so each entry lists candidates and the first o
 
 Nothing is estimated: a number a platform didn't report is left blank.
 
-**Heat** (0–100) is one scale across all niches: reaction (comments, upvotes, views) weighted most, plus number of threads and communities and velocity (threads in the last 24h), on log scales so one mega-thread can't drown out a conversation happening everywhere.
+**Heat** (0–100) is how hot a conversation is now, on one scale across all niches: reaction (comments, upvotes, views) weighted most, plus number of threads and communities and velocity (threads in the last 24h), on log scales so one mega-thread can't drown out a conversation happening everywhere. Reaction counts in full for three days and then halves every two, because a scan reads eight days back (Reddit's counts settle at ~36h) and old megathreads otherwise kept a story on top for a week. A story that has been on the feed more than two days without fresh threads or fresh reaction loses up to 20 points (fatigue). Cross-niche lists show at most two topics per niche and skip repeats of the same story or theme.
 
 **Virality** (0–100) is how fast a conversation is spreading: reactions (comments + upvotes/likes + views/100) per hour since its first post, plus how hard the average post lands.
 
 **Verdict**: every topic and Explore search gets *Make now*, *Worth testing* or *Skip*, cut from an opportunity score built on virality, heat, momentum, freshness and how crowded YouTube already is. In Explore the AI may move that score by at most 15 points, with reasons, so a fading or saturated topic can't be talked into "make now". Run `npx tsx scripts/score-report.ts` to see how the calls spread across the latest scans.
+
+**Learning from creators** (`lib/feedback.ts`): people vote on whether a verdict is right, mark topics they made, and later report how each did against their usual (Track record). Once a niche has 5+ reported results, or 6+ votes mostly against one kind of call, its verdicts are nudged by at most 7 points, and the nudge is listed as a reason. Explore searches are counted without names (`lib/research.ts`) and shown on Pulse once 2+ different people searched the same phrase. People can suggest communities for a niche (`lib/suggestions.ts`); they're checked against the archive and join scans once the admin approves them.
 
 ## Daily scan
 

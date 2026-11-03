@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowBigUp, Eye, MessageSquare, Users } from "lucide-react";
 import { nicheLabel } from "@/lib/niches";
 import type { RegionFilter, SourceId, Topic } from "@/lib/types";
-import { compact } from "@/lib/utils";
+import { cn, compact } from "@/lib/utils";
 import { mentionsOf, topicIn } from "@/lib/view";
 import { Badge, Card, Delta, Heat, Metric, RegionSplit, SourceTag, VerdictBadge, ViralityChip } from "./ui";
 
@@ -23,11 +23,11 @@ export function topicHref(t: Topic) {
   return `/topic/${t.niche}/${t.id}`;
 }
 
-export function TopicCard({ topic, region, showNiche, rank }: { topic: Topic; region: RegionFilter; showNiche?: boolean; rank?: number }) {
+export function TopicCard({ topic, region, showNiche, rank, className }: { topic: Topic; region: RegionFilter; showNiche?: boolean; rank?: number; className?: string }) {
   const { metrics, heat, virality } = topicIn(topic, region);
   const mentions = mentionsOf(topic, region);
   return (
-    <Link href={topicHref(topic)} className="group block h-full">
+    <Link href={topicHref(topic)} className={cn("group block h-full", className)}>
       <Card hover className="flex h-full flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-faint">

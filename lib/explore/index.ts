@@ -15,16 +15,14 @@ import * as wiki from "@/lib/sources/wikipedia";
 import * as yt from "@/lib/sources/youtube";
 import { store } from "@/lib/store";
 import type { ExploreInsight, ExploreOpportunity, ExploreResult, ExploreSourceResult, Post, RegionFilter, Sentiment } from "@/lib/types";
-import { compact, hash } from "@/lib/utils";
+import { compact, hash, textOf, textsOf } from "@/lib/utils";
+import { storyCheck, titleMatches } from "./story";
+
+export { titleMatches };
 
 /** Big Indian communities searched directly, so India is not a sliver of a US-heavy sitewide search. */
 const INDIA_CORE = ["india", "AskIndia", "indiadiscussion", "IndiaSpeaks", "bangalore", "mumbai", "delhi", "developersIndia", "IndiaInvestments", "IndianStreetBets"];
 const GLOBAL_CORE = ["OutOfTheLoop", "worldnews", "technology", "AskReddit", "news"];
-
-export function titleMatches(title: string, query: string): boolean {
-  const t = title.toLowerCase();
-  return query.toLowerCase().split(/\s+/).filter((w) => w.length > 2).every((w) => t.includes(w));
-}
 
 export function normalizeQuery(q: string) {
   return q.trim().replace(/\s+/g, " ").slice(0, 80);
@@ -237,6 +235,9 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
   return result;
 }
 
+/** The highest score a topic with no new story can reach: a "test" at most. */
+const STORYLESS_CAP = 52;
+
 /**
  * Is a searched topic worth making content on, from the numbers alone? This
  * is computed before any model reads the posts, and the model may only move
@@ -244,7 +245,10 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
  */
 function opportunityOf(r: ExploreResult, videos: Post[]): ExploreOpportunity {
   const now = Date.now();
-  const posts = r.posts;
+  // Reaction is measured on the posts that are about the topic, not the ones
+  // that matched because it appears somewhere in the body.
+  const about = r.posts.filter((p) => titleMatches(p.title, r.query));
+  const posts = about.length >= 5 ? about : r.posts;
   const engagement = posts.reduce((a, p) => a + engagementOf(p), 0);
   const first = Math.min(...posts.map((p) => (p.createdAt ? Date.parse(p.createdAt) : now)), now);
   const hours = Math.min(168, Math.max(2, (now - first) / 3_600_000));
@@ -260,9 +264,11 @@ function opportunityOf(r: ExploreResult, videos: Post[]): ExploreOpportunity {
   const priorViews = avg(views.slice(-10, -3));
   const attention = views.length >= 10 && priorViews > 0 ? Math.round((avg(views.slice(-3)) / priorViews) * 100) / 100 : null;
   const videoViews = videos.reduce((a, p) => a + (p.views ?? 0), 0);
+  const story = storyCheck(r, momentum);
 
   const signals: string[] = [];
-  let score = 0.45 * virality + Math.min(25, Math.log10(r.totals.conversations + 1) * 10);
+  // Passing mentions are not demand: volume counts in proportion to the posts actually about it.
+  let score = 0.45 * virality + Math.min(25, Math.log10(r.totals.conversations * Math.max(0.25, story.relevance) + 1) * 10);
   if (momentum !== null) {
     if (momentum >= 1.3) { score += 12; signals.push(`Rising: ${Math.round((momentum - 1) * 100)}% more conversation per day in the last 3 days`); }
     else if (momentum < 0.7) { score -= 10; signals.push(`Fading: ${Math.round((1 - momentum) * 100)}% less conversation per day in the last 3 days`); }
@@ -277,10 +283,24 @@ function opportunityOf(r: ExploreResult, videos: Post[]): ExploreOpportunity {
     signals.push(`Crowded: ${videos.length} videos this week with ${compact(videoViews)} views`);
   }
   if (r.totals.conversations < 15) { score -= 15; signals.push(`Thin: only ${r.totals.conversations} conversations this week`); }
-  signals.unshift(`~${compact(perHour)} reactions an hour, ${compact(perConversation)} per conversation`);
+
+  // The story check: is anything new happening, or is this the usual talk?
+  if (story.novelty !== null) {
+    if (story.novelty >= 2) score += 10;
+    else if (story.novelty >= 1.4) score += 6;
+    else if (story.novelty < 1.15 && !story.evergreen) { score -= 6; signals.push("No more interest than usual"); }
+  }
+  if (story.focus && story.focus.share >= 0.3) score += 4;
+  if (r.posts.length >= 10 && story.relevance < 0.35) signals.push("Most posts only mention it in passing");
+  if (story.evergreen) {
+    // A familiar subject is always being talked about. Without a new story it
+    // can be worth a test, never a "make".
+    score = Math.min(score - 12, STORYLESS_CAP);
+  }
+  signals.unshift(`~${compact(perHour)} reactions an hour, ${compact(perConversation)} per conversation`, story.label);
 
   score = Math.round(Math.max(0, Math.min(100, score)));
-  return { virality, perHour, engagementPerConversation: perConversation, momentum, attention, saturation: { videos: videos.length, views: videoViews }, score, call: callOf(score), signals };
+  return { virality, perHour, engagementPerConversation: perConversation, momentum, attention, saturation: { videos: videos.length, views: videoViews }, score, call: callOf(score), signals, story };
 }
 
 export async function cachedExplore(query: string, region: RegionFilter) {
@@ -288,7 +308,23 @@ export async function cachedExplore(query: string, region: RegionFilter) {
 }
 
 export async function cachedInsight(query: string, region: RegionFilter) {
-  return (await store.get<ExploreInsight>(insightKey(query, region)))?.value ?? null;
+  const v = (await store.get<ExploreInsight>(insightKey(query, region)))?.value;
+  return v ? cleanInsight(v) : null;
+}
+
+/**
+ * An insight with every list item as text. Insights saved before textOf
+ * existed can hold the model's objects, which the screen showed as
+ * "[object Object]".
+ */
+function cleanInsight(i: ExploreInsight): ExploreInsight {
+  return {
+    ...i,
+    questions: textsOf(i.questions, 5),
+    threads: (i.threads ?? []).map((t) => ({ title: textOf(t?.title), detail: textOf(t?.detail) })).filter((t) => t.title),
+    angles: (i.angles ?? []).map((a) => ({ ...a, format: textOf(a?.format), hook: textOf(a?.hook) })).filter((a) => a.hook),
+    decision: i.decision && { ...i.decision, reasons: textsOf(i.decision.reasons, 3), risks: textsOf(i.decision.risks, 2), gap: textOf(i.decision.gap) },
+  };
 }
 
 const SENTIMENTS = new Set(["positive", "negative", "mixed", "neutral"]);
@@ -296,7 +332,7 @@ const SENTIMENTS = new Set(["positive", "negative", "mixed", "neutral"]);
 export async function exploreInsight(query: string, region: RegionFilter, modelId?: string): Promise<ExploreInsight> {
   const cachedInsight = await store.get<ExploreInsight>(insightKey(query, region));
   if (cachedInsight && Date.now() - Date.parse(cachedInsight.updatedAt) < config.scan.exploreTtlMs && !modelId) {
-    return cachedInsight.value;
+    return cleanInsight(cachedInsight.value);
   }
   const result = (await cachedExplore(query, region)) ?? (await explore(query, region));
   const picked = modelId ? MODEL_BY_ID.get(modelId) : undefined;
@@ -317,21 +353,23 @@ export async function exploreInsight(query: string, region: RegionFilter, modelI
   if (!out) throw lastError;
   const { data, model } = out;
   const insight: ExploreInsight = {
-    summary: String(data.summary ?? ""),
-    threads: (data.threads ?? []).filter((t) => t?.title).slice(0, 5),
+    summary: textOf(data.summary),
+    threads: (Array.isArray(data.threads) ? data.threads : [])
+      .map((t) => ({ title: textOf(t?.title), detail: textOf(t?.detail) })).filter((t) => t.title).slice(0, 5),
     sentiment: {
       label: (SENTIMENTS.has(String(data.sentiment?.label)) ? data.sentiment!.label : "neutral") as Sentiment,
-      detail: String(data.sentiment?.detail ?? ""),
+      detail: textOf(data.sentiment?.detail),
     },
-    questions: (data.questions ?? []).map(String).slice(0, 5),
-    angles: (data.angles ?? []).filter((a) => a?.hook).slice(0, 6),
+    questions: textsOf(data.questions, 5),
+    angles: (Array.isArray(data.angles) ? data.angles : [])
+      .map((a) => ({ format: textOf(a?.format), hook: textOf(a?.hook) })).filter((a) => a.hook).slice(0, 6),
     verdict: "",
-    decision: decisionOf(data.decision, result.opportunity?.score),
+    decision: decisionOf(data.decision, result.opportunity?.score, result.opportunity?.story?.evergreen ? STORYLESS_CAP + 3 : 100),
     model,
   };
   // Keep the model's headline only if its call survived the clamp; otherwise
   // it would say "make" above a "skip" badge.
-  const headline = String(data.decision?.headline ?? data.verdict ?? "");
+  const headline = textOf(data.decision?.headline ?? data.verdict);
   insight.verdict = !insight.decision || data.decision?.call === insight.decision.call ? headline : "";
   await store.set(insightKey(query, region), insight).catch(() => {});
   return insight;
@@ -345,18 +383,19 @@ export async function exploreInsight(query: string, region: RegionFilter, modelI
 function decisionOf(
   d: { call?: string; score?: number; reasons?: unknown[]; risks?: unknown[]; gap?: string } | undefined,
   computed: number | undefined,
+  cap: number,
 ): ExploreInsight["decision"] {
   if (!d && computed === undefined) return undefined;
   const asked = Number(d?.score);
   let score = Number.isFinite(asked) ? asked : computed ?? 50;
   if (computed !== undefined) score = Math.max(computed - 15, Math.min(computed + 15, score));
-  score = Math.round(Math.max(0, Math.min(100, score)));
+  score = Math.round(Math.max(0, Math.min(cap, score)));
   return {
     call: callOf(score),
     score,
     base: computed,
-    reasons: (d?.reasons ?? []).map(String).filter(Boolean).slice(0, 3),
-    risks: (d?.risks ?? []).map(String).filter(Boolean).slice(0, 2),
-    gap: String(d?.gap ?? ""),
+    reasons: textsOf(d?.reasons, 3),
+    risks: textsOf(d?.risks, 2),
+    gap: textOf(d?.gap),
   };
 }

@@ -3,22 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Radar, RefreshCw, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Radar, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import type { FeedPrefs } from "@/lib/prefs";
+import type { Researched } from "@/lib/research";
 import type { NicheScan, RegionFilter, Signal, SignalsScan, SourceId } from "@/lib/types";
-import { compact, relativeTime } from "@/lib/utils";
-import { mentionsOf, rankTopics, topicIn, visibleTopics, volumeRows, weeklyPosts, type RankBy } from "@/lib/view";
+import { cn, compact, relativeTime } from "@/lib/utils";
+import { bestOf, mentionsOf, topicIn, visibleTopics, volumeRows, weeklyPosts, type RankBy } from "@/lib/view";
 import { DailyBars, RankBars, Sparkline } from "./charts";
 import { useRegion } from "./region";
+import { SuggestCommunity } from "./suggest-community";
 import { ScanAllButton, ScanProgressPanel, useScanRunner } from "./scan-runner";
 import { TopicCard, TopicRow } from "./topic-card";
 import { Button, Card, EmptyState, Eyebrow, REGION_OPTIONS, Segmented, SOURCE_META, Stat } from "./ui";
 
 const STALE_MS = 6 * 60 * 60_000;
 
-export function PulseView({ scans, signals, initialNiche, prefs }: {
-  scans: NicheScan[]; signals: SignalsScan | null; initialNiche: string | null; prefs: FeedPrefs;
+export function PulseView({ scans, signals, initialNiche, prefs, researching }: {
+  scans: NicheScan[]; signals: SignalsScan | null; initialNiche: string | null; prefs: FeedPrefs; researching: Researched[];
 }) {
   const { region, setRegion } = useRegion();
   const [niche, setNicheState] = useState<string | null>(initialNiche && NICHE_BY_ID.has(initialNiche) ? initialNiche : null);
@@ -93,7 +95,10 @@ export function PulseView({ scans, signals, initialNiche, prefs }: {
           )
       ) : (
         <Overview scans={scans} region={region} setNiche={setNiche} missing={missing} rankBy={rankBy} rankSwitch={rankSwitch} mine={mine}
-          spiking={signals && <SpikingNow signals={signals} region={region} niche={null} />} />
+          spiking={<>
+            <Researching items={researching} />
+            {signals && <SpikingNow signals={signals} region={region} niche={null} />}
+          </>} />
       )}
     </div>
   );
@@ -148,6 +153,34 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
         sub={hottest ? <span className="line-clamp-1">Hottest: {hottest.title}</span> : "None yet"}
       />
     </div>
+  );
+}
+
+/**
+ * What other creators are looking up in Explore, counted without names and
+ * shown only once several different people searched the same thing. A topic
+ * creators are suddenly researching is an early signal nobody else has.
+ */
+function Researching({ items }: { items: Researched[] }) {
+  if (!items.length) return null;
+  return (
+    <section>
+      <div className="mb-2.5 flex items-baseline justify-between">
+        <Eyebrow>Creators are researching</Eyebrow>
+        <span className="text-[0.6875rem] text-faint">Explore searches by DeepField creators, last 3 days, no names</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((r) => (
+          <Link key={r.query} href={`/explore?q=${encodeURIComponent(r.query)}`}
+            className="card card-hover press flex items-center gap-2 rounded-pill px-3 py-1.5 text-[0.8125rem]">
+            <Search className="h-3.5 w-3.5 text-faint" />
+            <span className="font-medium">{r.query}</span>
+            <span className="num text-xs text-muted">{r.people} creators</span>
+            {r.rising && <span className="text-xs text-rise">↑</span>}
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -283,7 +316,11 @@ function NichePills({ niche, setNiche, scans, region, mine }: {
   );
 }
 
-const BOARD_PREVIEW = 9;
+/** Twelve fill 2, 3 or 4 columns evenly; below the widest screens the last three are hidden, leaving nine. */
+const BOARD_PREVIEW = 12;
+/** Cards past this many show only on the widest screens, where there is a fourth column. */
+const NARROW_SHOWS = { hottest: 6, board: 9 };
+const wideOnly = (i: number, shown: number) => (i >= shown ? "hidden 3xl:block" : undefined);
 
 function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitch, mine }: {
   scans: NicheScan[]; region: RegionFilter; setNiche: (n: string) => void; missing: string[]; spiking: React.ReactNode;
@@ -294,7 +331,7 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
   const yours = scans.filter((s) => mine.has(s.niche)).flatMap((s) => visibleTopics(s, region));
   const [scope, setScope] = useState<"mine" | "all">(yours.length ? "mine" : "all");
   const pool = scope === "mine" && yours.length ? yours : scans.flatMap((s) => visibleTopics(s, region));
-  const hottest = rankTopics(pool, region, rankBy).slice(0, 6);
+  const hottest = bestOf(pool, region, rankBy, 8);
 
   const board = scans
     .map((s) => ({ s, topics: visibleTopics(s, region) }))
@@ -321,8 +358,8 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
             {rankSwitch}
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {hottest.map((t, i) => <TopicCard key={t.id} topic={t} region={region} showNiche rank={i + 1} />)}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4">
+          {hottest.map((t, i) => <TopicCard key={t.id} topic={t} region={region} showNiche rank={i + 1} className={wideOnly(i, NARROW_SHOWS.hottest)} />)}
         </div>
       </section>
 
@@ -333,13 +370,13 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
           <h2 className="text-[1.05rem] font-semibold tracking-tight">Every niche at a glance</h2>
           {missing.length > 0 && <span className="text-xs text-faint">{missing.length} niches not scanned yet</span>}
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {(showAll ? board : board.slice(0, BOARD_PREVIEW)).map(({ s, topics }) => {
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4">
+          {(showAll ? board : board.slice(0, BOARD_PREVIEW)).map(({ s, topics }, i) => {
             const n = NICHE_BY_ID.get(s.niche)!;
             const rows = volumeRows(s, region);
             const series = rows.map((r) => r.IN + r.GLOBAL);
             return (
-              <Card key={s.niche} className="flex flex-col p-4">
+              <Card key={s.niche} className={cn("flex flex-col p-4", !showAll && i >= NARROW_SHOWS.board && "hidden 3xl:flex")}>
                 <button onClick={() => setNiche(s.niche)} className="group flex items-start justify-between gap-3 text-left">
                   <div className="min-w-0">
                     <p className="font-semibold tracking-tight group-hover:text-accent">{n.label}</p>
@@ -359,8 +396,9 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
             );
           })}
         </div>
-        {board.length > BOARD_PREVIEW && (
-          <div className="mt-4 flex justify-center">
+        {board.length > NARROW_SHOWS.board && (
+          // With twelve or fewer, the widest screens already show every niche.
+          <div className={cn("mt-4 flex justify-center", board.length <= BOARD_PREVIEW && "3xl:hidden")}>
             <Button size="sm" variant="ghost" onClick={() => setShowAll((v) => !v)}>
               {showAll ? "Show fewer niches" : `Show all ${board.length} niches`}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAll ? "rotate-180" : ""}`} />
@@ -413,6 +451,7 @@ function NicheDetail({ scan, region, spiking, rankBy, rankSwitch }: {
         <Card className="p-5">
           <p className="eyebrow mb-3">Where the conversation happens · posts this week</p>
           <RankBars rows={communities.slice(0, 8).map((c) => ({ label: c.name, value: c.postsWeek, region: c.region, href: `https://www.reddit.com/${c.name}/` }))} />
+          <SuggestCommunity niche={scan.niche} label={n.label} />
         </Card>
       </div>
 
@@ -432,7 +471,7 @@ function NicheDetail({ scan, region, spiking, rankBy, rankSwitch }: {
 
       {topics.length > 1 && <div className="flex justify-end">{rankSwitch}</div>}
       {topics.length ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4">
           {topics.map((t, i) => <TopicCard key={t.id} topic={t} region={region} rank={i + 1} />)}
         </div>
       ) : (

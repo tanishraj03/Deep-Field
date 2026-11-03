@@ -1,7 +1,7 @@
 import { completeJSON } from "@/lib/ai/client";
 import { CLUSTER_SYSTEM, clusterUser } from "@/lib/ai/prompts";
 import type { ContentAngle, Post, Sentiment } from "@/lib/types";
-import { terms } from "@/lib/utils";
+import { terms, textOf, textsOf } from "@/lib/utils";
 import { engagement } from "@/lib/sources/reddit";
 
 /** A group of posts before metrics are computed. */
@@ -36,20 +36,20 @@ export async function clusterWithAI(modelId: string, nicheLabel: string, posts: 
     const idx = (Array.isArray(t.posts) ? t.posts : [])
       .map(Number)
       .filter((i) => Number.isInteger(i) && i >= 0 && i < posts.length && !used.has(i));
-    if (!t.title || !idx.length) continue;
+    if (!textOf(t.title) || !idx.length) continue;
     idx.forEach((i) => used.add(i));
     drafts.push({
-      title: String(t.title).trim(),
-      summary: String(t.summary ?? "").trim(),
-      whyNow: String(t.whyNow ?? "").trim(),
+      title: textOf(t.title),
+      summary: textOf(t.summary),
+      whyNow: textOf(t.whyNow),
       sentiment: (SENTIMENTS.has(String(t.sentiment)) ? t.sentiment : "neutral") as Sentiment,
-      questions: (Array.isArray(t.questions) ? t.questions : []).map(String).filter(Boolean).slice(0, 3),
+      questions: textsOf(t.questions, 3),
       angles: (Array.isArray(t.angles) ? t.angles : [])
-        .map((a) => ({ format: String((a as ContentAngle)?.format ?? ""), hook: String((a as ContentAngle)?.hook ?? "") }))
+        .map((a) => ({ format: textOf((a as ContentAngle)?.format), hook: textOf((a as ContentAngle)?.hook) }))
         .filter((a) => a.hook)
         .slice(0, 3),
       postIds: idx.map((i) => posts[i].id),
-      query: t.query ? String(t.query).trim().slice(0, 60) : undefined,
+      query: textOf(t.query).slice(0, 60) || undefined,
     });
   }
   return { drafts, model };

@@ -11,6 +11,7 @@ import { mentionsOf, postsFor, topicIn } from "@/lib/view";
 import { RankBars } from "./charts";
 import { PostRow } from "./post-row";
 import { useRegion } from "./region";
+import { TopicFeedback } from "./topic-feedback";
 import { SentimentBadge } from "./topic-card";
 import { Badge, Button, Card, Delta, Eyebrow, Heat, REGION_OPTIONS, RegionSplit, Segmented, Stat, VERDICT_META, VerdictBadge } from "./ui";
 import { bestCommentByPost, TopComments, useDiscussion, VoicesPanel } from "./voices";
@@ -56,14 +57,14 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href={`/?niche=${topic.niche}`} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
           <ArrowLeft className="h-4 w-4" />{n?.label ?? topic.niche}
         </Link>
         <Segmented value={region} onChange={setRegion} options={REGION_OPTIONS} layoutId="topic-region" size="sm" />
       </div>
 
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 max-w-3xl">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -89,6 +90,7 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
                     {topic.verdict.reasons.map((r) => <li key={r}>· {r}</li>)}
                   </ul>
                 )}
+                <TopicFeedback topicKey={`${topic.niche}:${topic.id}`} />
               </div>
             )}
           </div>

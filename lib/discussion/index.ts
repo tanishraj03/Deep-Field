@@ -11,7 +11,7 @@ import { blueskyPosts } from "@/lib/sources/social";
 import * as yt from "@/lib/sources/youtube";
 import { store } from "@/lib/store";
 import type { Comment, CommentThread, Discussion, Post, RegionFilter, SourceId, VoicePick } from "@/lib/types";
-import { hash, pool, shortQuery, terms } from "@/lib/utils";
+import { hash, pool, shortQuery, terms, textOf } from "@/lib/utils";
 import { postsFor } from "@/lib/view";
 
 /**
@@ -130,16 +130,16 @@ async function rank(subject: { title: string; summary?: string; whyNow?: string 
         const c = at(p.i);
         if (!c || seen.has(c.id)) continue;
         seen.add(c.id);
-        picks.push({ commentId: c.id, why: String(p.why ?? ""), role: ROLES.has(p.role as VoicePick["role"]) ? p.role as VoicePick["role"] : "mood" });
+        picks.push({ commentId: c.id, why: textOf(p.why), role: ROLES.has(p.role as VoicePick["role"]) ? p.role as VoicePick["role"] : "mood" });
       }
       if (!picks.length) throw new Error("The model picked no comments");
       const themes = (data.themes ?? [])
         .map((t) => ({
-          label: String(t.label ?? ""), detail: String(t.detail ?? ""),
+          label: textOf(t.label), detail: textOf(t.detail),
           commentIds: [...new Set((t.comments ?? []).map(at).filter((c): c is Comment => !!c).map((c) => c.id))],
         }))
         .filter((t) => t.label && t.commentIds.length);
-      return { picks: picks.slice(0, 12), themes: themes.slice(0, 5), takeaway: String(data.takeaway ?? ""), model };
+      return { picks: picks.slice(0, 12), themes: themes.slice(0, 5), takeaway: textOf(data.takeaway), model };
     } catch (e) { lastError = e; }
   }
   return { ...byVotes(), note: `Ranked by votes and replies: the AI read failed (${errMessage(lastError)}).` };

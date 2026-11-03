@@ -1,13 +1,18 @@
 import { AdminTabs, PeopleTable, PlatformControls } from "@/components/admin";
+import { SuggestionQueue } from "@/components/admin-suggestions";
 import { ScheduleCard } from "@/components/schedule-card";
 import { Card, Eyebrow, Stat } from "@/components/ui";
 import { loadAdminData, type AdminData } from "@/lib/admin-data";
 import { requireAdmin } from "@/lib/auth/admin";
+import { learning, MIN_RESULTS, MIN_VOTES, type Learning } from "@/lib/feedback";
+import { nicheLabel } from "@/lib/niches";
+import { MIN_PEOPLE, researchTrends, type Researched } from "@/lib/research";
+import { allSuggestions, type Suggestion } from "@/lib/suggestions";
 import { relativeTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const TAB_IDS = ["overview", "people", "logins", "platform", "log"] as const;
+const TAB_IDS = ["overview", "people", "logins", "learning", "communities", "platform", "log"] as const;
 type Tab = (typeof TAB_IDS)[number];
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", {
@@ -16,7 +21,9 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-IN", {
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   await requireAdmin();
-  const [{ tab: raw }, d] = await Promise.all([searchParams, loadAdminData()]);
+  const [{ tab: raw }, d, learned, suggestions, researched] = await Promise.all([
+    searchParams, loadAdminData(), learning(), allSuggestions().catch((): Suggestion[] => []), researchTrends(20).catch((): Researched[] => []),
+  ]);
   const tab: Tab = (TAB_IDS as readonly string[]).includes(raw ?? "") ? (raw as Tab) : "overview";
 
   return (
@@ -32,11 +39,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           between them happens in the browser, without asking the server again. */}
       <AdminTabs
         initial={tab}
-        counts={{ people: d.totals.people }}
+        counts={{ people: d.totals.people, communities: suggestions.filter((s) => s.status === "pending").length || undefined }}
         panels={{
           overview: <Overview d={d} />,
           people: <PeopleTable people={d.people} />,
           logins: <SignIns d={d} />,
+          learning: <LearningPanel l={learned} researched={researched} />,
+          communities: <SuggestionQueue initial={suggestions} />,
           platform: <Platform d={d} />,
           log: <AdminLog d={d} />,
         }}
@@ -78,6 +87,76 @@ function Overview({ d }: { d: AdminData }) {
       <section>
         <Eyebrow className="mb-3">Latest sign-ins</Eyebrow>
         <Logins entries={d.logins.slice(0, 6)} />
+      </section>
+    </div>
+  );
+}
+
+const CALL_LABEL = { make: "Make now", test: "Worth testing", skip: "Skip" } as const;
+
+/** What DeepField has learned from creators: votes, results, the nudges they cause, and what people research. */
+function LearningPanel({ l, researched }: { l: Learning; researched: Researched[] }) {
+  const nudges = Object.entries(l.byNiche).filter(([, n]) => n.bias).sort((a, b) => Math.abs(b[1].bias) - Math.abs(a[1].bias));
+  return (
+    <div className="space-y-6">
+      <Card className="grid grid-cols-2 gap-6 p-5 sm:grid-cols-4">
+        <Stat label="Creators giving feedback" value={l.people} />
+        <Stat label="Verdict votes" value={l.votes} />
+        <Stat label="Topics made" value={l.made} />
+        <Stat label="Results reported" value={l.reported} sub={l.made ? `${Math.round((l.reported / l.made) * 100)}% of made` : undefined} />
+      </Card>
+
+      <section>
+        <Eyebrow className="mb-3">How the calls are holding up</Eyebrow>
+        <Card className="divide-y">
+          {(["make", "test", "skip"] as const).map((c) => {
+            const s = l.byCall[c];
+            const votes = s.up + s.down;
+            return (
+              <div key={c} className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[9rem_1fr_1fr] sm:items-center">
+                <span className="font-medium">{CALL_LABEL[c]}</span>
+                <span className="text-muted">{s.reported ? `${s.hits} of ${s.reported} beat the creator's usual (${Math.round((s.hits / s.reported) * 100)}%)` : `No results yet (${s.made} made)`}</span>
+                <span className="text-muted">{votes ? `${s.up} agree, ${s.down} disagree` : "No votes yet"}</span>
+              </div>
+            );
+          })}
+        </Card>
+        <p className="mt-2 text-xs text-faint">If the calls work, &quot;Make now&quot; should beat the creator&apos;s usual most often and &quot;Skip&quot; least.</p>
+      </section>
+
+      <section>
+        <Eyebrow className="mb-3">Nudges in effect</Eyebrow>
+        {nudges.length ? (
+          <Card className="divide-y">
+            {nudges.map(([id, n]) => (
+              <div key={id} className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[9rem_4rem_1fr] sm:items-center">
+                <span className="font-medium">{nicheLabel(id)}</span>
+                <span className={`num font-semibold ${n.bias > 0 ? "text-rise" : "text-fall"}`}>{n.bias > 0 ? "+" : ""}{n.bias}</span>
+                <span className="text-xs text-muted">{n.reasons.join(" · ")}</span>
+              </div>
+            ))}
+          </Card>
+        ) : (
+          <Card className="px-4 py-6 text-sm text-muted">
+            None yet. A niche&apos;s verdicts start leaning once it has {MIN_RESULTS}+ reported results, or {MIN_VOTES}+ votes mostly against one kind of call. Each nudge is capped at 7 points and shown as a reason on the verdict.
+          </Card>
+        )}
+      </section>
+
+      <section>
+        <Eyebrow className="mb-3">What creators are researching · last 3 days</Eyebrow>
+        {researched.length ? (
+          <Card className="divide-y">
+            {researched.map((r) => (
+              <div key={r.query} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span>{r.query}{r.rising && <span className="ml-2 text-xs text-rise">rising</span>}</span>
+                <span className="num text-xs text-muted">{r.people} creators</span>
+              </div>
+            ))}
+          </Card>
+        ) : (
+          <Card className="px-4 py-6 text-sm text-muted">Nothing yet. A search shows once {MIN_PEOPLE}+ different people have made it. Who searched is never stored in a way anyone can read, you included.</Card>
+        )}
       </section>
     </div>
   );

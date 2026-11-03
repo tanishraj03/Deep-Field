@@ -54,7 +54,7 @@ export function ModelPicker({ models, value, onChange }: { models: PublicModel[]
           <motion.div
             initial={{ opacity: 0, y: 6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
             transition={{ duration: 0.16 }}
-            className="card absolute bottom-full left-0 z-50 mb-2 max-h-[70vh] w-[22rem] overflow-y-auto p-1.5 shadow-2xl"
+            className="card absolute bottom-full left-0 z-50 mb-2 max-h-[70dvh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1.5 shadow-2xl"
             role="listbox"
           >
             {groups.map((g) => g.items.length > 0 && (

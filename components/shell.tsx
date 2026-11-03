@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, TriangleAlert, X } from "lucide-react";
+import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Target, TriangleAlert, X } from "lucide-react";
 import type { PlatformSettings } from "@/lib/platform";
 import { cn, DISMISSED_COOKIE, SIDEBAR_COOKIE } from "@/lib/utils";
 import { Ambient } from "./ambient";
@@ -18,6 +18,7 @@ const NAV = [
 
 /** Below the main screens on desktop; in the account menu on phones. */
 const MORE = [
+  { href: "/made", label: "Track record", icon: Target },
   { href: "/keys", label: "Keys", icon: KeyRound },
   { href: "/help", label: "Help & FAQ", icon: CircleHelp },
 ];
@@ -274,9 +275,9 @@ export function Shell({ children, account, announcement = null, initialCollapsed
         <div className="flex items-center gap-1"><ThemeSwitch /><AccountMenu account={account} compact /></div>
       </header>
 
-      <main className={cn("min-w-0 flex-1", fullBleed ? "" : "px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8")}>
+      <main className={cn("min-w-0 flex-1", fullBleed ? "" : "px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8 3xl:px-14")}>
         {fullBleed ? children : (
-          <div className="mx-auto max-w-[78rem]">
+          <div className="mx-auto max-w-[78rem] 3xl:max-w-[100rem] 4xl:max-w-[120rem]">
             {announcement && <AnnouncementBar key={announcement.at} announcement={announcement} />}
             {children}
           </div>

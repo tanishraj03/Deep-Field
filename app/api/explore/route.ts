@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
 import { track } from "@/lib/platform";
 import { explore } from "@/lib/explore";
+import { recordResearch } from "@/lib/research";
 import type { RegionFilter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,12 @@ export const maxDuration = 120;
 const REGIONS = new Set(["ALL", "IN", "GLOBAL"]);
 
 export async function GET(req: NextRequest) {
-  return withUser((user) => { track(user.id, "searches"); return search(req); });
+  return withUser((user) => {
+    track(user.id, "searches");
+    // Counted without names, for "what creators are researching" (lib/research.ts).
+    recordResearch(user.id, req.nextUrl.searchParams.get("q") ?? "");
+    return search(req);
+  });
 }
 
 async function search(req: NextRequest) {

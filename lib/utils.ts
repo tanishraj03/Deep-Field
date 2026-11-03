@@ -217,6 +217,29 @@ export function noEmDashDeep<T>(v: T): T {
   return v;
 }
 
+const TEXT_KEYS = ["text", "question", "q", "title", "hook", "reason", "risk", "label", "detail", "value", "content"];
+
+/**
+ * The text in one item of a model's JSON. Asked for ["a question"], models
+ * sometimes answer [{"question": "a question"}], and String() of that is
+ * "[object Object]". Takes the likely field, else the first string inside.
+ */
+export function textOf(v: unknown): string {
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number") return String(v);
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    const key = TEXT_KEYS.find((k) => typeof o[k] === "string" && (o[k] as string).trim());
+    if (key) return (o[key] as string).trim();
+    const first = Object.values(o).find((x) => typeof x === "string" && x.trim());
+    return typeof first === "string" ? first.trim() : "";
+  }
+  return "";
+}
+
+/** A list of texts from a model's JSON, empties dropped. */
+export const textsOf = (v: unknown, max: number): string[] => (Array.isArray(v) ? v : []).map(textOf).filter(Boolean).slice(0, max);
+
 /** A topic title cut down to a search query: its first few content words. */
 export function shortQuery(title: string, words = 4): string {
   return title.replace(/[“”"'’:\u2014\u2013\-|?!.,()]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w.toLowerCase())).slice(0, words).join(" ");

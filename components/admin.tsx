@@ -25,6 +25,8 @@ const TABS = [
   { id: "overview", label: "Overview" },
   { id: "people", label: "People" },
   { id: "logins", label: "Sign-ins" },
+  { id: "learning", label: "Learning" },
+  { id: "communities", label: "Communities" },
   { id: "platform", label: "Platform" },
   { id: "log", label: "Admin log" },
 ] as const;

@@ -13,7 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="relative min-h-dvh">
       <Ambient />
       <header className="sticky top-0 z-30 border-b bg-canvas/85">
-        <div className="mx-auto flex max-w-[78rem] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
+        <div className="mx-auto flex max-w-[78rem] items-center 3xl:max-w-[100rem] 3xl:px-14 4xl:max-w-[120rem] justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
           <Link href="/admin" className="flex items-center gap-2.5">
             <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-ink">
               <span className="absolute h-3.5 w-3.5 rounded-full border-[1.5px] border-canvas" />
@@ -25,8 +25,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </span>
           </Link>
           <div className="flex items-center gap-1.5">
-            <Link href="/" className="press inline-flex h-9 items-center gap-1.5 rounded-pill bg-ink px-4 text-[0.8125rem] font-medium text-canvas hover:opacity-90">
-              <Rss className="h-4 w-4" />My DeepField feed
+            <Link href="/" className="press inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-pill bg-ink px-4 text-[0.8125rem] font-medium text-canvas hover:opacity-90">
+              <Rss className="h-4 w-4" />My <span className="hidden sm:inline">DeepField </span>feed
             </Link>
             <form action="/api/auth/logout" method="post">
               <button type="submit" aria-label="Sign out" title="Sign out"
@@ -37,7 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[78rem] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8">{children}</main>
+      <main className="mx-auto max-w-[78rem] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8 3xl:max-w-[100rem] 3xl:px-14 4xl:max-w-[120rem]">{children}</main>
     </div>
   );
 }

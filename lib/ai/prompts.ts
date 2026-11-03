@@ -31,6 +31,8 @@ Return JSON only, shaped exactly:
 Rules:
 - 10 to 16 topics, strongest first, judged by reaction (comments, upvotes, views) more than by how many posts there are. A topic needs at least 2 posts, unless a single post drew far more discussion than the rest.
 - Every index must come from the list. A post belongs to at most one topic.
+- A topic is one specific story, not a subject. Only include a post if it is clearly about that exact story: for "iPhone Duo screen cracks", a post about an iPhone 17 bug or a general iPhone question does NOT belong. Leave loosely related posts out rather than padding a topic with them.
+- Favour what is happening now. Each post line shows its age: a story with fresh posts in the last two days beats one whose posts are mostly a week old. Do not lead with a story that has gone quiet.
 - Skip weekly/megathreads, moderator notices, self-promotion and individual "help me" posts that are not part of a wider conversation, unless many people are asking the same thing, which IS a conversation ("Everyone is asking whether X…").
 - Prefer conversations with real engagement or that appear across several communities. Include India and Global conversations when both are present.
 - Write 2-3 angles per topic. Hooks must be specific to this conversation, not generic advice.
@@ -51,7 +53,7 @@ Return JSON only:
   "summary": "3-4 sentences: what the conversation is, its size relative to the data, and who is driving it",
   "threads": [{"title": "a sub-conversation inside the topic", "detail": "1-2 sentences, citing communities or posts by name"}],
   "sentiment": {"label": "positive" | "negative" | "mixed" | "neutral", "detail": "1 sentence on how people feel and why"},
-  "questions": ["up to 5 questions people are asking"],
+  "questions": ["up to 5 questions people are asking, each a plain string"],
   "angles": [{"format": "Reel" | "Short" | "Carousel" | "Long-form video" | "Thread" | "Meme" | "Newsletter", "hook": "a specific hook"}],
   "decision": {
     "call": "make" | "test" | "skip",
@@ -71,6 +73,7 @@ How to make the call. You are paid to protect the creator's time, not to encoura
 - Most topics are "test" or "skip". A lot of posts is not the same as demand; low reaction per conversation means people are not engaging.
 - Never call something "highly worth it" because it is popular in general. Crowded topics need a sharp gap or they are a "skip".
 - The headline must match the call. A "skip" says skip.
+- Familiar subjects (a planet, a celebrity, a sport, a big brand) are always being talked about. The STORY CHECK says whether this week is different: interest above its usual level, or posts converging on one subject. If it says "Evergreen", the volume is normal background talk, not demand: the call is "test" at best, the headline says there is no new story, and the angles must be specific takes a creator could own, not the subject itself.
 - The OPPORTUNITY score is an input for your decision only. Never mention it, or "the computed score", in the summary, threads or anywhere else; describe the conversation itself.
 
 Style: never use em dashes; write with commas, colons or full stops instead.`;
@@ -81,8 +84,11 @@ export function insightUser(r: ExploreResult): string {
   const communities = r.communities.slice(0, 12).map((c) => `${c.name} (${c.posts})`).join(", ");
   const o = r.opportunity;
   const opportunity = o ? `OPPORTUNITY (computed): ${o.score}/100 → ${o.call}. Virality ${o.virality}/100. ${o.signals.join(". ")}.${o.momentum !== null ? ` Momentum ratio ${o.momentum}.` : ""} YouTube this week: ${o.saturation.videos} videos, ${o.saturation.views} views.` : "";
+  const s = o?.story;
+  const story = s ? `STORY CHECK: ${s.label}. ${s.novelty !== null ? `Wikipedia views this week are ${s.novelty}× its usual day. ` : ""}${Math.round(s.relevance * 100)}% of posts name it in the title.${s.focus ? ` Most shared subject: "${s.focus.phrase}" in ${Math.round(s.focus.share * 100)}% of them.` : " The posts share no common subject."}` : "";
   return `Topic: "${r.query}"  ·  Region filter: ${r.region === "ALL" ? "everywhere" : r.region === "IN" ? "India" : "Global"}
 ${opportunity}
+${story}
 Conversations found: ${r.totals.conversations} · comments ${r.totals.comments} · upvotes ${r.totals.score} · video views ${r.totals.views}
 India vs global posts: ${r.regionSplit.IN} / ${r.regionSplit.GLOBAL}
 By source:

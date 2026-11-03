@@ -101,9 +101,9 @@ export function ExploreView({ initialQuery, initialRegion, suggestions }: {
           />
           {input && <button type="button" onClick={() => setInput("")} className="text-faint hover:text-ink"><X className="h-4 w-4" /></button>}
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Segmented value={region} onChange={changeRegion} options={REGION_OPTIONS} layoutId="explore-region" size="sm" />
-          <Button type="submit" variant="primary" loading={loading}>Search</Button>
+          <Button type="submit" variant="primary" loading={loading} className="ml-auto">Search</Button>
         </div>
       </form>
 
@@ -177,7 +177,7 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
 
   return (
     <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="eyebrow">This week · {where}</p>

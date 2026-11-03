@@ -87,15 +87,21 @@ export async function attention(query: string) {
   const title = await articleFor(query);
   if (!title) return null;
   const article = encodeURIComponent(title.replace(/ /g, "_"));
+  // 90 days in one request: the last 30 are drawn, the 60 before them are the
+  // article's usual level, so a planet or a film star that is always read is
+  // not mistaken for a moment.
   const r = await getJson<{ items?: { timestamp: string; views: number }[] }>(
-    `${REST}/per-article/en.wikipedia/all-access/user/${article}/daily/${ymd(30).compact}/${ymd(1).compact}`,
+    `${REST}/per-article/en.wikipedia/all-access/user/${article}/daily/${ymd(90).compact}/${ymd(1).compact}`,
     { gapMs: 200 });
+  const all = (r.items ?? []).map((i) => ({
+    date: `${i.timestamp.slice(0, 4)}-${i.timestamp.slice(4, 6)}-${i.timestamp.slice(6, 8)}`,
+    views: i.views,
+  }));
+  const before = all.slice(0, -30).map((d) => d.views).sort((a, b) => a - b);
   return {
     article: title,
     url: `https://en.wikipedia.org/wiki/${article}`,
-    daily: (r.items ?? []).map((i) => ({
-      date: `${i.timestamp.slice(0, 4)}-${i.timestamp.slice(4, 6)}-${i.timestamp.slice(6, 8)}`,
-      views: i.views,
-    })),
+    daily: all.slice(-30),
+    usual: before.length >= 21 ? before[Math.floor(before.length / 2)] : null,
   };
 }

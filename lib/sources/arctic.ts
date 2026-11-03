@@ -142,3 +142,14 @@ export async function dailyPosts(sub: string, days = 14): Promise<{ date: string
 export function isMeasured(createdUtcSeconds: number): boolean {
   return Date.now() - createdUtcSeconds * 1000 >= MATURE_AFTER_MS;
 }
+
+export interface SubredditInfo { name: string; subscribers: number; nsfw: boolean; description: string }
+
+/** A community's name as Reddit spells it, its size and whether it is NSFW. Null when it doesn't exist. */
+export async function subredditInfo(name: string): Promise<SubredditInfo | null> {
+  const d = await call<{ display_name: string; subscribers: number | null; over18: boolean; public_description: string | null }[]>(
+    "/subreddits/search", { subreddit: name, limit: 1, fields: "display_name,subscribers,over18,public_description" });
+  const s = d?.[0];
+  if (!s || s.display_name.toLowerCase() !== name.toLowerCase()) return null;
+  return { name: s.display_name, subscribers: s.subscribers ?? 0, nsfw: s.over18, description: (s.public_description ?? "").slice(0, 240) };
+}

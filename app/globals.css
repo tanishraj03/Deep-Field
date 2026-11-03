@@ -9,6 +9,14 @@
   (checked with the dataviz validator in both modes; never reuse these for UI).
 */
 @layer base {
+  /*
+    A grid with no column rule gets one column that may shrink below its
+    content. The browser default sizes it to the content instead, so one
+    truncated title pushes the whole page wider than a phone screen.
+    Any grid-cols-* utility still wins over this.
+  */
+  .grid { grid-template-columns: minmax(0, 1fr); }
+
   :root {
     --canvas: 248 248 247;
     --surface: 255 255 255;

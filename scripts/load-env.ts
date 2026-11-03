@@ -13,11 +13,17 @@ import { existsSync, readFileSync } from "node:fs";
 for (const file of [".env.local", ".env"]) {
   const path = new URL(`../${file}`, import.meta.url);
   if (!existsSync(path)) continue;
+  // Within a file the last line for a key wins, as in Next.js (.env.local
+  // has YOUTUBE_API_KEY twice); across files, .env.local beats .env.
+  const fromThisFile = new Set<string>();
   for (const line of readFileSync(path, "utf8").split("\n")) {
     const t = line.trim();
     if (!t || t.startsWith("#") || !t.includes("=")) continue;
     const i = t.indexOf("=");
     const k = t.slice(0, i).trim();
-    if (process.env[k] === undefined) process.env[k] = t.slice(i + 1).trim();
+    if (process.env[k] === undefined || fromThisFile.has(k)) {
+      process.env[k] = t.slice(i + 1).trim();
+      fromThisFile.add(k);
+    }
   }
 }

@@ -221,7 +221,7 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel, 
         </div>
 
         <div ref={scroller} className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+          <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 3xl:max-w-4xl">
             {!active?.messages.length ? (
               <Welcome
                 context={active?.contextLabel ?? null}
@@ -239,7 +239,7 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel, 
 
         {/* Composer */}
         <div className="px-4 pb-4 sm:px-6">
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-3xl 3xl:max-w-4xl">
             <div className="card p-2 shadow-[0_8px_30px_-18px_rgb(0_0_0/0.35)] focus-within:ring-1 focus-within:ring-accent/40">
               <textarea
                 ref={textarea}

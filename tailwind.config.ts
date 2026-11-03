@@ -7,6 +7,8 @@ const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Wide and ultrawide monitors: more columns and a wider page, not longer lines.
+      screens: { "3xl": "1920px", "4xl": "2560px" },
       colors: {
         canvas: token("canvas"),
         surface: token("surface"),
