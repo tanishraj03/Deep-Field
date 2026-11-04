@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { getFeedback, learning, markMade, OUTCOMES, refOf, reportOutcome, unmake, vote, type Outcome } from "@/lib/feedback";
 import { loadScan } from "@/lib/pulse/scan";
 
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   return withUser(async (user) => {
+    const slow = limited(user.id, "feedback");
+    if (slow) return slow;
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const bad = (error: string) => NextResponse.json({ ok: false, error }, { status: 400 });
     const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);

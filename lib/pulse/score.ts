@@ -1,6 +1,7 @@
 import type { NicheScan, Post, SourceId, Topic, TopicMetrics, TopicVerdict } from "@/lib/types";
 import { compact, noEmDash } from "@/lib/utils";
 import { hash, jaccard, terms } from "@/lib/utils";
+import { languageOf, topicLanguage } from "@/lib/language";
 import type { Draft } from "./cluster";
 
 /** One post's reaction: comments, upvotes or likes, and views at 100 to one. */
@@ -210,6 +211,8 @@ export function rescore(scan: NicheScan): NicheScan {
     // Text written before the no-em-dash rule is cleaned as it is read.
     const scored = {
       ...t, metrics, heat, virality,
+      // A translated title names the language it came from, even when most threads are English.
+      language: topicLanguage(posts.map((p) => p.title)) ?? (t.originalTitle ? languageOf(t.originalTitle) : undefined),
       title: noEmDash(t.title), summary: noEmDash(t.summary), whyNow: noEmDash(t.whyNow),
       questions: t.questions.map(noEmDash), angles: t.angles.map((a) => ({ ...a, hook: noEmDash(a.hook) })),
     };
@@ -298,6 +301,7 @@ export function buildTopics(
   for (const t of topics) {
     const posts = postsOf(t.postIds);
     const all = scores(posts, now, t.firstSeen);
+    t.language = topicLanguage(posts.map((p) => p.title));
     t.metrics = all.metrics;
     t.heat = all.heat;
     t.virality = all.virality;

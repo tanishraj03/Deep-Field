@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check, KeyRound, Minus, X } from "lucide-react";
 import { ScanAllButton } from "@/components/scan-runner";
+import { DeleteAccount } from "@/components/delete-account";
 import { ScheduleCard } from "@/components/schedule-card";
 import { Badge, Card, Eyebrow } from "@/components/ui";
 import { backgroundModel, MODELS, PROVIDERS, hasKey } from "@/lib/ai/models";
@@ -42,7 +43,8 @@ function health(runs: SourceRun[]) {
 
 export default async function SettingsPage() {
   // What the signed-in user's keys unlock, read inside their key scope.
-  const { DATA, keyed, bg, owner } = await withPageKeys((user) => ({
+  const { DATA, keyed, bg, owner, username } = await withPageKeys((user) => ({
+    username: user.username!,
     DATA: dataSources(),
     keyed: new Set(Object.values(PROVIDERS).filter((p) => hasKey(p.id)).map((p) => p.id)),
     bg: backgroundModel(),
@@ -142,6 +144,12 @@ export default async function SettingsPage() {
           })}
         </Card>
         {storage.note && storage.backend !== "supabase" && <p className="mt-2 text-xs text-ember">{storage.note}</p>}
+      </section>
+
+      <section>
+        <Eyebrow className="mb-3">Your account</Eyebrow>
+        <DeleteAccount username={username} />
+        <p className="mt-2 text-xs text-faint">How your data is handled: <Link href="/privacy" className="underline-offset-2 hover:underline">privacy</Link>.</p>
       </section>
     </div>
   );

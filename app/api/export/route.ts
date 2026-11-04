@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { contextMarkdown, type ExportContext } from "@/lib/export";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +8,7 @@ export const maxDuration = 120;
 
 /** The research a chat was opened from, as Markdown, for taking to another AI. */
 export async function POST(req: NextRequest) {
-  return withUser(() => exportContext(req));
+  return withUser(async (user) => limited(user.id, "export") ?? exportContext(req));
 }
 
 async function exportContext(req: NextRequest) {

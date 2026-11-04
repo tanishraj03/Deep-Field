@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { usesServerKeys, keyStatus, removeKeys, restoreServerKeys, saveKeys } from "@/lib/auth/users";
 import { verifyKey } from "@/lib/auth/verify-key";
 import type { KeyField } from "@/lib/keys";
@@ -18,6 +19,9 @@ export async function GET() {
  */
 export async function PUT(req: NextRequest) {
   return withUser(async (user) => {
+    // Each save checks the key with its provider.
+    const slow = limited(user.id, "keys");
+    if (slow) return slow;
     const body = (await req.json().catch(() => ({}))) as { integration?: string; values?: Record<string, unknown>; restoreServer?: boolean };
     const integ = INTEGRATION_BY_ID.get(body.integration as IntegrationId);
     if (!integ) return NextResponse.json({ ok: false, error: "Unknown key type." }, { status: 400 });

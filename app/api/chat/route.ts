@@ -4,6 +4,7 @@ import { defaultChatModel, MODEL_BY_ID } from "@/lib/ai/models";
 import { assistantSystem, postLine } from "@/lib/ai/prompts";
 import { runTool, TOOLS } from "@/lib/ai/tools";
 import { withUser, type User } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { track } from "@/lib/platform";
 import { cachedExplore } from "@/lib/explore";
 import { nicheLabel } from "@/lib/niches";
@@ -58,7 +59,7 @@ ${r.posts.slice(0, 20).map((p, i) => `${postLine(p, i)} · ${p.url}`).join("\n")
  * and every model call and tool spends the signed-in user's own keys.
  */
 export async function POST(req: NextRequest) {
-  return withUser((user) => chat(req, user));
+  return withUser(async (user) => limited(user.id, "chat") ?? chat(req, user));
 }
 
 /** A long research chat fits comfortably; anything past it is not a conversation. */

@@ -69,6 +69,10 @@ export interface Topic {
   isNew: boolean;
   /** When this conversation first appeared on the feed, carried from scan to scan. Older scans lack it. */
   firstSeen?: string;
+  /** The language most of its threads are in, when not English (lib/language.ts). */
+  language?: string;
+  /** The title as it was before translation into English. */
+  originalTitle?: string;
   /** "ai" when a model grouped it, "rules" when keyword overlap did. */
   groupedBy: "ai" | "rules";
   /** 2-4 words people use when they mention it, what web mentions are counted by. */

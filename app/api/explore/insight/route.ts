@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { track } from "@/lib/platform";
 import { exploreInsight } from "@/lib/explore";
 import type { RegionFilter } from "@/lib/types";
@@ -10,7 +11,12 @@ export const maxDuration = 120;
 const REGIONS = new Set<string>(["ALL", "IN", "GLOBAL"]);
 
 export async function POST(req: NextRequest) {
-  return withUser((user) => { track(user.id, "insights"); return insight(req); });
+  return withUser(async (user) => {
+    const slow = limited(user.id, "insight");
+    if (slow) return slow;
+    track(user.id, "insights");
+    return insight(req);
+  });
 }
 
 async function insight(req: NextRequest) {

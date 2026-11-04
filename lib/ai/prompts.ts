@@ -32,6 +32,7 @@ Rules:
 - 10 to 16 topics, strongest first, judged by reaction (comments, upvotes, views) more than by how many posts there are. A topic needs at least 2 posts, unless a single post drew far more discussion than the rest.
 - Every index must come from the list. A post belongs to at most one topic.
 - A topic is one specific story, not a subject. Only include a post if it is clearly about that exact story: for "iPhone Duo screen cracks", a post about an iPhone 17 bug or a general iPhone question does NOT belong. Leave loosely related posts out rather than padding a topic with them.
+- Write every title, summary, question and hook in English, whatever language the posts are in. Translate the gist; never copy a non-English post title as the topic title.
 - Favour what is happening now. Each post line shows its age: a story with fresh posts in the last two days beats one whose posts are mostly a week old. Do not lead with a story that has gone quiet.
 - Skip weekly/megathreads, moderator notices, self-promotion and individual "help me" posts that are not part of a wider conversation, unless many people are asking the same thing, which IS a conversation ("Everyone is asking whether X…").
 - Prefer conversations with real engagement or that appear across several communities. Include India and Global conversations when both are present.

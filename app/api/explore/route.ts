@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { track } from "@/lib/platform";
 import { explore } from "@/lib/explore";
 import { recordResearch } from "@/lib/research";
@@ -11,7 +12,9 @@ export const maxDuration = 120;
 const REGIONS = new Set(["ALL", "IN", "GLOBAL"]);
 
 export async function GET(req: NextRequest) {
-  return withUser((user) => {
+  return withUser(async (user) => {
+    const slow = limited(user.id, "explore");
+    if (slow) return slow;
     track(user.id, "searches");
     // Counted without names, for "what creators are researching" (lib/research.ts).
     recordResearch(user.id, req.nextUrl.searchParams.get("q") ?? "");

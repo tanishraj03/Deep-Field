@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { track } from "@/lib/platform";
 import { queryDiscussion, topicDiscussion } from "@/lib/discussion";
 import type { RegionFilter } from "@/lib/types";
@@ -11,7 +12,12 @@ const REGIONS = new Set(["ALL", "IN", "GLOBAL"]);
 
 /** ?topic=<niche>:<id> for a scanned topic, or ?q=<query>&region=<r> for an Explore search. */
 export async function GET(req: NextRequest) {
-  return withUser((user) => { track(user.id, "discussions"); return discussion(req); });
+  return withUser(async (user) => {
+    const slow = limited(user.id, "discussion");
+    if (slow) return slow;
+    track(user.id, "discussions");
+    return discussion(req);
+  });
 }
 
 async function discussion(req: NextRequest) {

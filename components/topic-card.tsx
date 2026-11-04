@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowBigUp, Eye, MessageSquare, Users } from "lucide-react";
+import { ArrowBigUp, Eye, Languages, MessageSquare, Users } from "lucide-react";
+import { regionWords } from "@/lib/language";
 import { nicheLabel } from "@/lib/niches";
 import type { RegionFilter, SourceId, Topic } from "@/lib/types";
 import { cn, compact } from "@/lib/utils";
@@ -21,6 +22,21 @@ export function SentimentBadge({ s }: { s: Topic["sentiment"] }) {
 
 export function topicHref(t: Topic) {
   return `/topic/${t.niche}/${t.id}`;
+}
+
+/**
+ * "Tamil · trending in India · translated": shown when a topic's threads are
+ * mostly not in English, so a translated title never hides where it's from.
+ */
+export function LanguageLine({ topic, className }: { topic: Topic; className?: string }) {
+  if (!topic.language) return null;
+  const where = regionWords(topic.metrics.postsIN, topic.metrics.postsGLOBAL);
+  return (
+    <p className={cn("flex items-center gap-1.5 text-[0.6875rem] text-muted", className)} title={topic.originalTitle ? `Original title: ${topic.originalTitle}` : undefined}>
+      <Languages className="h-3.5 w-3.5 shrink-0 text-faint" />
+      <span>In {topic.language}{where && ` · ${where}`}{topic.originalTitle && <span className="text-faint"> · translated</span>}</span>
+    </p>
+  );
 }
 
 export function TopicCard({ topic, region, showNiche, rank, className }: { topic: Topic; region: RegionFilter; showNiche?: boolean; rank?: number; className?: string }) {
@@ -46,6 +62,7 @@ export function TopicCard({ topic, region, showNiche, rank, className }: { topic
         <h3 className="mt-2.5 line-clamp-2 text-[0.975rem] font-semibold leading-snug tracking-tight group-hover:text-accent">
           {topic.title}
         </h3>
+        <LanguageLine topic={topic} className="mt-1" />
         {topic.summary && <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-muted">{topic.summary}</p>}
         <div className="mt-auto pt-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-3">
@@ -79,6 +96,7 @@ export function TopicRow({ topic, region }: { topic: Topic; region: RegionFilter
       <div className="min-w-0 flex-1">
         <p className="truncate text-[0.875rem] font-medium group-hover:text-accent">{topic.title}</p>
         <p className="mt-0.5 flex items-center gap-2 text-xs text-muted">
+          {topic.language && <span>{topic.language} ·</span>}
           <span className="num">{metrics.posts} posts</span>
           {metrics.comments > 0 && <span className="num">· {metrics.comments.toLocaleString("en-US")} comments</span>}
           {topic.isNew && <span className="text-accent">· new</span>}

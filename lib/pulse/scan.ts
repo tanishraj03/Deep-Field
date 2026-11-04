@@ -18,13 +18,14 @@ import type { CommunityVolume, NicheScan, Post, Signal, SignalsScan, SourceRun, 
 import { pool, shortQuery } from "@/lib/utils";
 import { attachLeftovers, clusterByRules, clusterWithAI, type Draft } from "./cluster";
 import { buildTopics, recencyWeight, rescore } from "./score";
+import { translateTopics } from "./translate";
 
 export const scanKey = (niche: string) => `scan:${niche}`;
 export const summaryKey = (niche: string) => `summary:${niche}`;
 export const SIGNALS_KEY = "signals";
 
 /** Bump when scoring changes, so stored summaries are re-scored from their full scans. */
-const SCORE_VERSION = 6;
+const SCORE_VERSION = 7;
 
 /**
  * A scan cut down to what the Pulse board shows, no posts, angles or
@@ -237,6 +238,8 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
   drafts = attachLeftovers(drafts, [...posts.values()]);
 
   const topics = buildTopics(niche.id, drafts, posts, groupedBy, previous);
+  const translated = await translateTopics(topics, slots);
+  if (translated) sources.push({ source: "Translated to English", ok: true, count: translated });
   lap("topics");
   const counted = await countWebMentions(topics);
   sources.push({ source: "Web mentions (Bluesky, Hacker News)", ok: counted > 0, count: counted });

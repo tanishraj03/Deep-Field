@@ -250,3 +250,24 @@ export async function keyStatus(user: User): Promise<IntegrationStatus[]> {
     };
   });
 }
+
+/**
+ * Delete an account and everything kept about it: profile, username, saved
+ * keys, feedback, activity counts, last-seen, and its rows in the sign-in
+ * log. Explore searches were only ever kept as anonymous fingerprints
+ * (lib/research.ts), so there is nothing of them to delete.
+ */
+export async function deleteAccount(user: User): Promise<void> {
+  await Promise.all([
+    store.remove(userKey(user.id)),
+    user.username ? store.remove(nameKey(user.username)) : Promise.resolve(),
+    store.remove(keysKey(user.id)),
+    store.remove(`fb:${user.id}`),
+    store.remove(`activity:${user.id}`),
+    store.remove(`seen:${user.id}`),
+  ]);
+  const logins = await store.get<{ uid: string }[]>("audit:logins").catch(() => null);
+  if (logins?.value.some((l) => l.uid === user.id)) {
+    await store.set("audit:logins", logins.value.filter((l) => l.uid !== user.id));
+  }
+}

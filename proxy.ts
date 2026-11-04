@@ -8,7 +8,7 @@ import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
  * session again itself (lib/auth) before spending anyone's keys.
  */
 
-const OPEN = ["/login", "/api/auth/"];
+const OPEN = ["/login", "/privacy", "/api/auth/"];
 /** The scheduler calls these with CRON_SECRET instead of a session. */
 const CRON = ["/api/scan", "/api/schedule"];
 

@@ -26,7 +26,7 @@ const MORE = [
 export interface Account { username: string; name: string; email: string; picture: string | null; admin: boolean }
 
 /** Screens shown without navigation: signing in, onboarding and the admin's service dashboard, which has its own. */
-const BARE = ["/login", "/welcome", "/admin"];
+const BARE = ["/login", "/welcome", "/admin", "/privacy"];
 
 /** The admin's way across to the service dashboard. Only rendered for the admin; the page checks again. */
 const ADMIN_LINK = { href: "/admin", label: "Service dashboard", icon: ShieldCheck };

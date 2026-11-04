@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withUser } from "@/lib/auth";
+import { limited } from "@/lib/rate-limit";
 import { suggest } from "@/lib/suggestions";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 /** Suggest a community for a niche: { niche, sub, region: "IN" | "GLOBAL", why? }. Checked, then queued for the admin. */
 export async function POST(req: NextRequest) {
   return withUser(async (user) => {
+    const slow = limited(user.id, "suggest");
+    if (slow) return slow;
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     try {
       const s = await suggest({

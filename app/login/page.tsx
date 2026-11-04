@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Ambient } from "@/components/ambient";
 import { LoginPreview, type PreviewTopic } from "@/components/login-preview";
@@ -123,7 +124,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               <p className="mt-3 rounded-xl bg-fall/[0.1] px-3 py-2 text-xs text-fall" role="alert">{error}</p>
             )}
             <p className="mt-3 text-center text-[0.6875rem] text-faint">
-              New here? Signing in creates your account. We only read your name, email and picture.
+              New here? Signing in creates your account. We only read your name, email and picture. <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">Privacy</Link>
             </p>
           </div>
         </div>

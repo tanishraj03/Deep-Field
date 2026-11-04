@@ -12,7 +12,7 @@ import { RankBars } from "./charts";
 import { PostRow } from "./post-row";
 import { useRegion } from "./region";
 import { TopicFeedback } from "./topic-feedback";
-import { SentimentBadge } from "./topic-card";
+import { LanguageLine, SentimentBadge } from "./topic-card";
 import { Badge, Button, Card, Delta, Eyebrow, Heat, REGION_OPTIONS, RegionSplit, Segmented, Stat, VERDICT_META, VerdictBadge } from "./ui";
 import { bestCommentByPost, TopComments, useDiscussion, VoicesPanel } from "./voices";
 
@@ -75,6 +75,8 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
               <VerdictBadge verdict={topic.verdict} />
             </div>
             <h1 className="mt-3 text-[1.625rem] font-semibold leading-tight tracking-tight">{topic.title}</h1>
+            <LanguageLine topic={topic} className="mt-1.5 text-xs" />
+            {topic.originalTitle && <p className="mt-1 text-sm text-faint">Original title: {topic.originalTitle}</p>}
             {topic.summary && <p className="mt-3 text-[0.95rem] leading-relaxed text-ink/85">{topic.summary}</p>}
             {topic.whyNow && <p className="mt-2 text-sm text-muted"><span className="font-medium text-ink/80">Why now: </span>{topic.whyNow}</p>}
             {topic.verdict && (
