@@ -2,6 +2,7 @@ import { backgroundModels } from "@/lib/ai/models";
 import { applyLearning, learningOrNull } from "@/lib/feedback";
 import { NICHE_BY_ID, NICHES, type Niche, type RegionCode } from "@/lib/niches";
 import * as arctic from "@/lib/sources/arctic";
+import * as creatordb from "@/lib/sources/creatordb";
 import * as gnews from "@/lib/sources/googlenews";
 import * as hn from "@/lib/sources/hackernews";
 import { errMessage } from "@/lib/sources/http";
@@ -285,6 +286,21 @@ async function countWebMentions(topics: Topic[]): Promise<number> {
   return ok;
 }
 
+/** X trends per region given numbers; the first few also get a YouTube search (100 quota units each). */
+const X_SIZED = 12;
+const X_YOUTUBE = 5;
+
+async function sizeXTrends(signals: Signal[]): Promise<number> {
+  const jobs = (["IN", "GLOBAL"] as const).flatMap((region) =>
+    signals.filter((s) => s.source === "x" && s.region === region).slice(0, X_SIZED).map((s, i) => ({ s, youtube: i < X_YOUTUBE })));
+  let ok = 0;
+  await pool(jobs, 4, async ({ s, youtube }) => {
+    s.size = await xtrends.sizeTrend(s, { youtube });
+    if (s.size.bluesky !== null || s.size.news !== null) ok++;
+  });
+  return ok;
+}
+
 export async function scanSignals(): Promise<SignalsScan> {
   const sources: SourceRun[] = [];
   const signals: Signal[] = [];
@@ -310,7 +326,18 @@ export async function scanSignals(): Promise<SignalsScan> {
     run("Google News India", () => gnews.topStories("IN")),
     run("Google News US", () => gnews.topStories("US")),
   ]);
-  const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources };
+
+  // X publishes no counts, so the top trends in each region are sized on
+  // platforms that do (lib/sources/xtrends.ts); and Instagram publishes no
+  // trends at all, so its trending Reels audio comes from CreatorDB's chart.
+  const [sized, instagramAudio] = await Promise.all([
+    sizeXTrends(signals),
+    creatordb.trendingAudio().catch((e) => { sources.push({ source: "Instagram trending audio (CreatorDB)", ok: false, count: 0, note: errMessage(e) }); return undefined; }),
+  ]);
+  if (instagramAudio) sources.push({ source: "Instagram trending audio (CreatorDB)", ok: true, count: instagramAudio.items.length });
+  sources.push({ source: "X trends sized (Bluesky, Google News, YouTube)", ok: sized > 0, count: sized });
+
+  const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources, instagramAudio };
   await store.set(SIGNALS_KEY, scan);
   invalidate();
   return scan;

@@ -161,12 +161,49 @@ export interface Signal {
   value: number;
   niche: string | null;
   context?: string;
+  /** For X trends, which come with no counts of their own: how big the same subject is elsewhere. */
+  size?: TrendSize;
+}
+
+/**
+ * An X trend sized on free platforms that do report numbers. null means
+ * that platform wasn't asked or didn't answer, never zero.
+ */
+export interface TrendSize {
+  /** The words searched for, from the trend's name. */
+  query: string;
+  /** Bluesky posts mentioning it in the last two days. */
+  bluesky: number | null;
+  blueskyCapped?: boolean;
+  /** Google News articles in the last two days. */
+  news: number | null;
+  /** Combined views of the week's most-viewed YouTube videos on it (top trends only: a search costs quota). */
+  youtubeViews: number | null;
+  youtubeTop?: { title: string; url: string; views: number } | null;
+}
+
+/** One sound on CreatorDB's weekly chart of trending Instagram Reels audio. */
+export interface InstagramAudio {
+  rank: number;
+  song: string;
+  artist: string;
+  /** The Reels format people use it for: "Outfit Reveal", "Holiday Launch Reveal"… */
+  trend: string;
+  /** CreatorDB's 0–100 Heat. */
+  heat: number | null;
+  momentum: string | null;
+  /** "190K": Reels using it, as CreatorDB reports it. null when it didn't. */
+  reels: string | null;
+  /** "#4 Spotify US +3", "YouTube Trending"… */
+  charts: string[];
 }
 
 export interface SignalsScan {
   scannedAt: string;
   signals: Signal[];
   sources: SourceRun[];
+  /** Trending Instagram Reels audio this week, from CreatorDB. Missing on older scans. */
+  instagramAudio?: { week: string | null; url: string; items: InstagramAudio[] };
 }
 
 /* ───────────── Explore ───────────── */

@@ -16,6 +16,7 @@ const START = [
 
 const SCREENS = [
   { name: "Pulse", body: "The feed. Every conversation DeepField found across 20 niches, with real counts (threads, comments, upvotes, views), a heat score, whether it's new or rising, its India / Global split, and a verdict. Switch Everywhere / India / Global at the top. Use the arrow at the end of the niche row to scroll through niches." },
+  { name: "On X and Instagram", body: "Below the hottest conversations on Pulse. Trending on X lists X's top trends in India and worldwide; X shares no numbers for free, so each one shows how much the same subject is being talked about on Bluesky, in the news and on YouTube in the last two days. Trending on Instagram is this week's top Reels audio from CreatorDB's free chart (global, mostly US): the sound, the format people use it for, and how many Reels use it." },
   { name: "Topic", body: "Open any conversation for its threads, the comments that explain why it's spreading, the questions people are asking and content angles. \"Ask the assistant\" opens a chat already loaded with it." },
   { name: "Explore", body: "Search any topic across Reddit, YouTube, Hacker News, news, Wikipedia, Bluesky, Mastodon and Lemmy. You get conversations per day and per source, the top communities, the actual threads, and an AI read with a verdict." },
   { name: "Assistant", body: "A chat with the model of your choice (switch in the picker). It has tools: it reads the latest scan, runs Explore searches and reads threads, so its answers cite live numbers. Chats are kept in this browser." },
