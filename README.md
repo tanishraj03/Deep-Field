@@ -82,6 +82,14 @@ Nothing is estimated: a number a platform didn't report is left blank.
 
 **Learning from creators** (`lib/feedback.ts`): people vote on whether a verdict is right, mark topics they made, and later report how each did against their usual (Track record). Once a niche has 5+ reported results, or 6+ votes mostly against one kind of call, its verdicts are nudged by at most 7 points, and the nudge is listed as a reason. Explore searches are counted without names (`lib/research.ts`) and shown on Pulse once 2+ different people searched the same phrase. People can suggest communities for a niche (`lib/suggestions.ts`); they're checked against the archive and join scans once the admin approves them.
 
+## Scans run on the server
+
+Pressing **Rescan** or **Rescan all** starts a job on the server (`lib/scan-jobs.ts`): one niche per request, each step starting the next with a signed token and running with the person's own keys. It finishes even if they leave the page or close the tab; the page only polls `/api/scan/run` for progress. A step that dies (a crash or the 300s limit) leaves the job resumable from the same button.
+
+## Region
+
+`vercel.json` pins the server to Vercel's Seoul region (`icn1`), next to the Supabase database (AWS ap-northeast-2). Every page reads the store several times; from Washington each read crossed the Pacific (~200 ms), from Seoul it's a few milliseconds. Move both together if you move either.
+
 ## Daily scan
 
 A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel). It calls the app with that secret instead of a sign-in, and scans with the server's keys. Only the admin can change the time.

@@ -57,7 +57,7 @@ jobs:
           for N in signals $NICHES; do
             if [ "$N" = "signals" ]; then Q="signals=1"; else Q="niche=$N"; fi
             HTTP=$(curl -s -o out.json -w "%{http_code}" -X POST "${APP_URL}/api/scan?${Q}" -H "$AUTH" --max-time 295)
-            LINE=$(python3 -c "import json;d=json.load(open('out.json'));print(d.get('topics', d.get('signals','')), d.get('model') or '', d.get('aiNote') or d.get('error') or '')" 2>/dev/null || echo "")
+            LINE=$(python3 -c "import json;d=json.load(open('out.json'));print(d.get('detail') or d.get('error') or '')" 2>/dev/null || echo "")
             echo "- \`$N\` → HTTP $HTTP $LINE" | tee -a "$GITHUB_STEP_SUMMARY"
             [ "$HTTP" -ge 200 ] && [ "$HTTP" -lt 300 ] || FAILED=$((FAILED+1))
             sleep 3

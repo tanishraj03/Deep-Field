@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { backgroundModel } from "@/lib/ai/models";
 import { isAdmin, isCron, withUserOrCron } from "@/lib/auth";
-import { config } from "@/lib/config";
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
-import { scanKey, scanNiche, scanSignals, SIGNALS_KEY } from "@/lib/pulse/scan";
+import { scanKey, SIGNALS_KEY } from "@/lib/pulse/scan";
+import { scanItem } from "@/lib/scan-jobs";
 import { getPlatform, track } from "@/lib/platform";
 import { store } from "@/lib/store";
 
@@ -56,29 +56,9 @@ async function scan(req: NextRequest, authorized: boolean) {
   if (!signals && !NICHE_BY_ID.has(niche)) {
     return NextResponse.json({ ok: false, error: `Unknown niche "${niche}"` }, { status: 400 });
   }
-
-  const key = signals ? SIGNALS_KEY : scanKey(niche);
-  if (!authorized) {
-    const last = await store.get(key);
-    const age = last ? Date.now() - Date.parse(last.updatedAt) : Infinity;
-    if (age < config.scan.cooldownMs) {
-      return NextResponse.json({
-        ok: true, skipped: true,
-        reason: `Scanned ${Math.round(age / 60000)} min ago, fresh enough.`,
-      });
-    }
-  }
-
   try {
-    if (signals) {
-      const s = await scanSignals();
-      return NextResponse.json({ ok: true, signals: s.signals.length, sources: s.sources });
-    }
-    const s = await scanNiche(niche);
-    return NextResponse.json({
-      ok: true, niche, topics: s.topics.length, posts: s.posts.length,
-      model: s.model, aiNote: s.aiNote, sources: s.sources,
-    });
+    const r = await scanItem(signals ? "signals" : niche, { ignoreCooldown: authorized });
+    return NextResponse.json({ ok: r.ok, niche: signals ? undefined : niche, skipped: r.skipped, detail: r.detail });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }

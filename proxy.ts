@@ -9,12 +9,14 @@ import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
  */
 
 const OPEN = ["/login", "/privacy", "/api/auth/"];
+/** Server-side scan steps carry their own signed token (lib/scan-jobs.ts) instead of a session. */
+const SIGNED = ["/api/scan/step"];
 /** The scheduler calls these with CRON_SECRET instead of a session. */
 const CRON = ["/api/scan", "/api/schedule"];
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  if (OPEN.some((p) => path === p || path.startsWith(p))) return NextResponse.next();
+  if (OPEN.some((p) => path === p || path.startsWith(p)) || SIGNED.includes(path)) return NextResponse.next();
 
   const api = path.startsWith("/api/");
   const secret = process.env.CRON_SECRET;
