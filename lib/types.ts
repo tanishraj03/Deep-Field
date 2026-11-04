@@ -212,12 +212,28 @@ export interface InstagramAudio {
   charts: string[];
 }
 
+/** One song on Spotify India's daily chart: what Indian Reels are being built on. */
+export interface IndiaSong {
+  rank: number;
+  song: string;
+  artist: string;
+  /** From the chart's own tag, "[Tamil]", when it has one. */
+  language: string | null;
+  move: string | null;
+  /** Days on the chart, and its best position. */
+  days: number | null;
+  peak: number | null;
+  url: string;
+}
+
 export interface SignalsScan {
   scannedAt: string;
   signals: Signal[];
   sources: SourceRun[];
   /** Trending Instagram Reels audio this week, from CreatorDB. Missing on older scans. */
   instagramAudio?: { week: string | null; url: string; items: InstagramAudio[] };
+  /** Spotify India's daily top songs, the closest free signal for Indian Reels audio. Missing on older scans. */
+  indiaAudio?: { date: string | null; url: string; items: IndiaSong[] };
 }
 
 /* ───────────── Explore ───────────── */

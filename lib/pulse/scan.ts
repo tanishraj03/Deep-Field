@@ -3,6 +3,7 @@ import { applyLearning, learningOrNull } from "@/lib/feedback";
 import { NICHE_BY_ID, NICHES, type Niche, type RegionCode } from "@/lib/niches";
 import * as arctic from "@/lib/sources/arctic";
 import * as creatordb from "@/lib/sources/creatordb";
+import * as kworb from "@/lib/sources/kworb";
 import * as gnews from "@/lib/sources/googlenews";
 import * as hn from "@/lib/sources/hackernews";
 import { errMessage } from "@/lib/sources/http";
@@ -330,8 +331,14 @@ export async function scanSignals(): Promise<SignalsScan> {
     return undefined;
   });
   if (instagramAudio) sources.push({ source: "Instagram trending audio (CreatorDB)", ok: true, count: instagramAudio.items.length });
+  // India has no Instagram audio chart; its Reels run on what's topping Spotify India.
+  const indiaAudio = await kworb.spotifyIndia().catch((e) => {
+    sources.push({ source: "Spotify India chart (kworb)", ok: false, count: 0, note: errMessage(e) });
+    return undefined;
+  });
+  if (indiaAudio) sources.push({ source: "Spotify India chart (kworb)", ok: true, count: indiaAudio.items.length });
 
-  const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources, instagramAudio };
+  const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources, instagramAudio, indiaAudio };
   await store.set(SIGNALS_KEY, scan);
   invalidate();
   return scan;

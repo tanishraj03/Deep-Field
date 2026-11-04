@@ -99,7 +99,7 @@ export function PulseView({ scans, signals, initialNiche, prefs, researching }: 
           spiking={<>
             <Researching items={researching} />
             {signals && <SpikingNow signals={signals} region={region} niche={null} />}
-            {signals?.instagramAudio && <InstagramAudioPanel data={signals.instagramAudio} />}
+            {signals && <InstagramAudioPanel signals={signals} region={region} />}
           </>} />
       )}
     </div>
