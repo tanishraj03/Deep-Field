@@ -41,13 +41,24 @@ function Column({ title, region, list, platform }: { title: string; region: Regi
                   <span className="truncate">{c.name}</span>
                   {c.followers !== null && platform.followers && <span className="num shrink-0 text-xs font-normal text-faint">· {compact(c.followers)} {platform.followers}</span>}
                 </a>
-                <p className="num mt-0.5 text-xs text-muted">
-                  {compact(c.reach)} {platform.reach} · {c.posts} {c.posts === 1 ? platform.posts[0] : platform.posts[1]}
+                <p className="num mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
+                  <span>{compact(c.reach)} {platform.reach} · {c.posts} {c.posts === 1 ? platform.posts[0] : platform.posts[1]}</span>
+                  {c.breakout !== null && c.breakout >= 3 && (
+                    <span className="rounded-pill bg-ember/10 px-1.5 py-px text-[0.625rem] font-semibold text-ember" title={`${c.breakout.toFixed(1)}× their subscriber count in views`}>
+                      Viral · {c.breakout >= 10 ? Math.round(c.breakout) : c.breakout.toFixed(1)}× subs
+                    </span>
+                  )}
                 </p>
                 <a href={c.top.url} target="_blank" rel="noreferrer" className="mt-0.5 flex items-center gap-1 text-[0.6875rem] text-faint hover:text-ink">
                   <span className="truncate">{c.top.title}</span><ExternalLink className="h-3 w-3 shrink-0" />
                 </a>
               </div>
+              <span className="flex shrink-0 flex-col items-end pt-1" title="DeepField creator score, 0–100">
+                <span className={cn("num text-sm font-semibold leading-none", (c.score ?? 0) >= 75 ? "text-ember" : "")}>{c.score ?? "–"}</span>
+                <span className="mt-1 h-1 w-8 overflow-hidden rounded-pill bg-hair/10">
+                  <span className="block h-full rounded-pill" style={{ width: `${c.score ?? 0}%`, background: (c.score ?? 0) >= 75 ? "rgb(var(--ember))" : "rgb(var(--ink) / 0.5)" }} />
+                </span>
+              </span>
             </li>
           ))}
         </ol>
@@ -64,8 +75,10 @@ function Column({ title, region, list, platform }: { title: string; region: Regi
  * and global. Indian means the channel says it's based in India (or posts in
  * an Indian language); YouTube's global list keeps to English videos.
  */
+type Period = "week" | "month";
+
 export function CreatorsView({ byNiche, initialNiche, mine }: {
-  byNiche: Record<string, { creators: Creator[]; scannedAt: string }>;
+  byNiche: Record<string, { week: Creator[]; month: Creator[]; since: string | null; scannedAt: string }>;
   initialNiche: string | null;
   mine: string[];
 }) {
@@ -76,8 +89,11 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
     setNicheState(id);
     window.history.replaceState(null, "", `/creators?niche=${id}`);
   };
+  const [period, setPeriod] = useState<Period>("week");
   const data = byNiche[niche];
-  const creators = data?.creators ?? [];
+  const creators = (period === "week" ? data?.week : data?.month) ?? [];
+  // The month view is built up from daily scans; say how much of a month it covers so far.
+  const covered = data?.since ? Math.max(1, Math.round((Date.now() - Date.parse(data.since)) / 86_400_000)) : 0;
   const regions = (region === "ALL" ? ["IN", "GLOBAL"] : [region]) as RegionCode[];
 
   return (
@@ -86,10 +102,16 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
         <div>
           <h1 className="text-[1.75rem] font-semibold tracking-tight">Creators</h1>
           <p className="mt-1 text-sm text-muted">
-            Who&apos;s behind what&apos;s taking off in each niche this week{data ? <> · updated {relativeTime(data.scannedAt)}</> : null}
+            Who&apos;s behind what&apos;s taking off in each niche {period === "week" ? "this week" : "over the last month"}{data ? <> · updated {relativeTime(data.scannedAt)}</> : null}
           </p>
         </div>
-        <Segmented value={region} onChange={setRegion} options={REGION_OPTIONS} layoutId="creators-region" />
+        <div className="flex flex-wrap gap-2">
+          <Segmented value={period} onChange={setPeriod} layoutId="creators-period" options={[
+            { value: "week", label: "This week" },
+            { value: "month", label: "This month" },
+          ]} />
+          <Segmented value={region} onChange={setRegion} options={REGION_OPTIONS} layoutId="creators-region" />
+        </div>
       </div>
 
       <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
@@ -103,6 +125,11 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
         ))}
       </div>
 
+      {period === "month" && creators.length > 0 && covered < 28 && (
+        <p className="-mt-2 text-xs text-faint">
+          This month so far covers {covered} {covered === 1 ? "day" : "days"}: DeepField keeps a 30-day record of every creator its daily scans see, so this fills in over the coming weeks.
+        </p>
+      )}
       {!creators.length ? (
         <EmptyState icon={Users} title={`No creators for ${NICHE_BY_ID.get(niche)?.label} yet`}
           body="Creators are worked out when a niche is scanned. They'll appear here after its next scan." />
@@ -123,7 +150,7 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
             );
           })}
           <p className="text-xs leading-relaxed text-faint">
-            Ranked by reaction to their posts in this niche over the last week: views on YouTube, upvotes and comments on Reddit. India means the channel says it&apos;s based in India, or posts in an Indian language. X and Instagram don&apos;t share creator data for free, so they aren&apos;t here yet.
+            Score (0–100): reach (views, or upvotes and comments), breakout (views against subscribers, so a small channel pulling millions ranks high), relevance to what the niche is discussing now, and consistency across posts. Channels re-uploading TikToks are marked down. India means evidence the creator is Indian: the channel&apos;s country, the language YouTube says it&apos;s in, or an Indian-language title. Instagram and X don&apos;t share creator data for free, so they aren&apos;t here.
           </p>
         </div>
       )}

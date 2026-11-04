@@ -15,7 +15,7 @@ export const hasYouTube = () => Boolean(currentKeys().youtube);
 
 interface Video {
   id: string;
-  snippet: { title: string; channelTitle: string; channelId?: string; publishedAt: string; description?: string };
+  snippet: { title: string; channelTitle: string; channelId?: string; publishedAt: string; description?: string; defaultAudioLanguage?: string; defaultLanguage?: string };
   statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
 }
 
@@ -43,6 +43,7 @@ function toPost(v: Video, region: RegionCode): Post {
     community: v.snippet.channelTitle,
     author: v.snippet.channelTitle,
     authorId: v.snippet.channelId,
+    lang: v.snippet.defaultAudioLanguage ?? v.snippet.defaultLanguage,
     region,
     createdAt: v.snippet.publishedAt,
     views: n(v.statistics?.viewCount),

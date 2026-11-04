@@ -39,6 +39,8 @@ export interface Post {
   author?: string;
   /** The platform's id for them: YouTube channel id, Bluesky handle. */
   authorId?: string;
+  /** The language the platform says it's in: YouTube's spoken-language code ("hi", "en-IN"). */
+  lang?: string;
 }
 
 export type Sentiment = "positive" | "negative" | "mixed" | "neutral";
@@ -141,6 +143,10 @@ export interface Creator {
   posts: number;
   /** Total reaction to those posts: views (YouTube), upvotes + comments (Reddit). */
   reach: number;
+  /** 0–100: reach, breakout (views against subscribers), relevance to the niche and consistency (lib/pulse/creators.ts). */
+  score: number;
+  /** Reach against subscribers: 2 means twice their subscriber count in views. YouTube only. */
+  breakout: number | null;
   top: { title: string; url: string; reach: number };
 }
 
@@ -178,8 +184,12 @@ export interface NicheScan {
   model: string | null;
   /** Why topics fell back to rules, when they did. */
   aiNote?: string;
-  /** Whose posts are taking off in this niche, per platform and region. Missing on older scans. */
+  /** Whose posts are taking off in this niche this week, per platform and region. Missing on older scans. */
   creators?: Creator[];
+  /** The same over the last 30 days, from the history kept across scans. */
+  creatorsMonth?: Creator[];
+  /** When that history started, so the page can say how much of a month it covers. */
+  creatorsSince?: string;
 }
 
 /** Things that are spiking across the whole internet, not tied to a niche. */

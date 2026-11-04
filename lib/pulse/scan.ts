@@ -247,11 +247,11 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
   sources.push({ source: "Web mentions (Bluesky, Hacker News)", ok: counted > 0, count: counted });
   lap("web mentions");
   // Who is behind it: YouTube channels, Reddit posters and Bluesky accounts (lib/pulse/creators.ts).
-  const creators = await buildCreators(niche, [...posts.values()]).catch((e) => {
+  const creators = await buildCreators(niche, [...posts.values()], topics).catch((e) => {
     sources.push({ source: "Creators", ok: false, count: 0, note: errMessage(e) });
-    return [];
+    return null;
   });
-  if (creators.length) sources.push({ source: "Creators", ok: true, count: creators.length });
+  if (creators) sources.push({ source: "Creators", ok: true, count: creators.week.length });
   lap("creators");
   const keep = new Set(topics.flatMap((t) => t.postIds));
   const scan: NicheScan = {
@@ -268,7 +268,9 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     postsRead,
     model,
     aiNote,
-    creators,
+    creators: creators?.week,
+    creatorsMonth: creators?.month,
+    creatorsSince: creators?.since,
   };
   await store.set(scanKey(niche.id), scan);
   await store.set(summaryKey(niche.id), summarize(scan)).catch(() => {});
