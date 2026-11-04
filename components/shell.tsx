@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Target, TriangleAlert, X } from "lucide-react";
+import { Activity, CircleHelp, KeyRound, Laptop, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Target, TriangleAlert, Users, X } from "lucide-react";
 import type { PlatformSettings } from "@/lib/platform";
 import { cn, DISMISSED_COOKIE, SIDEBAR_COOKIE } from "@/lib/utils";
 import { Ambient } from "./ambient";
@@ -13,6 +13,7 @@ import { useTheme } from "./theme";
 const NAV = [
   { href: "/", label: "Pulse", icon: Activity, hint: "What's being talked about" },
   { href: "/explore", label: "Explore", icon: Search, hint: "Research any topic" },
+  { href: "/creators", label: "Creators", icon: Users, hint: "Who's behind what's trending" },
   { href: "/assistant", label: "Assistant", icon: Sparkles, hint: "Ask and dig deeper" },
 ];
 

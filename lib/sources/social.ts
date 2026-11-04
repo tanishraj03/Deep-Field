@@ -122,6 +122,8 @@ export async function blueskySearch(query: string): Promise<{ total: number; cap
         title: truncate(p.record.text!.replace(/\s+/g, " ").trim(), 160),
         url: `https://bsky.app/profile/${p.author.handle}/post/${rkey}`,
         community: `@${p.author.handle}`,
+        author: p.author.displayName || p.author.handle,
+        authorId: p.author.handle,
         region: "GLOBAL" as const,
         createdAt: p.record.createdAt ?? null,
         score: p.likeCount,
@@ -167,4 +169,21 @@ export async function blueskyCount(query: string, days = 7): Promise<{ count: nu
     `https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=1&since=${since}`);
   const count = r.hitsTotal ?? 0;
   return { count, capped: count >= 10_000 };
+}
+
+export interface BskyProfile { handle: string; followers: number | null; avatar: string | null; displayName: string | null }
+
+/** Follower counts and avatars for up to 25 Bluesky accounts per call. Keyless. */
+export async function blueskyProfiles(handles: string[]): Promise<Map<string, BskyProfile>> {
+  const out = new Map<string, BskyProfile>();
+  const unique = [...new Set(handles.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 25) {
+    const qs = unique.slice(i, i + 25).map((h) => `actors=${encodeURIComponent(h)}`).join("&");
+    const r = await getJson<{ profiles?: { handle: string; displayName?: string; avatar?: string; followersCount?: number }[] }>(
+      `https://api.bsky.app/xrpc/app.bsky.actor.getProfiles?${qs}`);
+    for (const p of r.profiles ?? []) {
+      out.set(p.handle, { handle: p.handle, followers: p.followersCount ?? null, avatar: p.avatar ?? null, displayName: p.displayName ?? null });
+    }
+  }
+  return out;
 }

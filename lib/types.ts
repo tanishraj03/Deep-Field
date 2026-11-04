@@ -35,6 +35,10 @@ export interface Post {
   /** Position in the platform's own "hot" ranking, when we read one. */
   hotRank?: number;
   snippet?: string;
+  /** Who posted it: a Reddit username, a YouTube channel, a Bluesky display name. */
+  author?: string;
+  /** The platform's id for them: YouTube channel id, Bluesky handle. */
+  authorId?: string;
 }
 
 export type Sentiment = "positive" | "negative" | "mixed" | "neutral";
@@ -117,6 +121,29 @@ export interface TopicMetrics {
   sources: Partial<Record<SourceId, number>>;
 }
 
+export type CreatorPlatform = "youtube" | "reddit";
+
+/**
+ * Someone whose posts are taking off in a niche this week, on one platform.
+ * Built from what the scan read (lib/pulse/creators.ts), so every number is
+ * the platform's own: views for YouTube, upvotes and comments for Reddit.
+ */
+export interface Creator {
+  platform: CreatorPlatform;
+  id: string;
+  name: string;
+  url: string;
+  avatar: string | null;
+  region: RegionCode;
+  /** Subscribers or followers, when the platform shares them. */
+  followers: number | null;
+  /** Their posts in this niche's trending set this week. */
+  posts: number;
+  /** Total reaction to those posts: views (YouTube), upvotes + comments (Reddit). */
+  reach: number;
+  top: { title: string; url: string; reach: number };
+}
+
 /** Per-community volume, measured by Reddit's archive. */
 export interface CommunityVolume {
   name: string;
@@ -151,6 +178,8 @@ export interface NicheScan {
   model: string | null;
   /** Why topics fell back to rules, when they did. */
   aiNote?: string;
+  /** Whose posts are taking off in this niche, per platform and region. Missing on older scans. */
+  creators?: Creator[];
 }
 
 /** Things that are spiking across the whole internet, not tied to a niche. */
@@ -165,25 +194,6 @@ export interface Signal {
   value: number;
   niche: string | null;
   context?: string;
-  /** For X trends, which come with no counts of their own: how big the same subject is elsewhere. */
-  size?: TrendSize;
-}
-
-/**
- * An X trend sized on free platforms that do report numbers. null means
- * that platform wasn't asked or didn't answer, never zero.
- */
-export interface TrendSize {
-  /** The words searched for, from the trend's name. */
-  query: string;
-  /** Bluesky posts mentioning it in the last two days. */
-  bluesky: number | null;
-  blueskyCapped?: boolean;
-  /** Google News articles in the last two days. */
-  news: number | null;
-  /** Combined views of the week's most-viewed YouTube videos on it (top trends only: a search costs quota). */
-  youtubeViews: number | null;
-  youtubeTop?: { title: string; url: string; views: number } | null;
 }
 
 /** One sound on CreatorDB's weekly chart of trending Instagram Reels audio. */

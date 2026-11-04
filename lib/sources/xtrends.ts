@@ -1,10 +1,7 @@
 import { guessNiche } from "@/lib/niches";
-import type { Signal, TrendSize } from "@/lib/types";
+import type { Signal } from "@/lib/types";
 import { decodeEntities } from "@/lib/utils";
 import { getText } from "./http";
-import * as gnews from "./googlenews";
-import * as social from "./social";
-import * as yt from "./youtube";
 
 /**
  * What is trending on X, read from getdaytrends.com, a public tracker of
@@ -45,32 +42,4 @@ export function trendQuery(name: string): string {
     .replace(/([A-Za-z])(\d)/g, "$1 $2")
     .replace(/_/g, " ")
     .trim();
-}
-
-/**
- * How big an X trend is on platforms that publish numbers: Bluesky posts and
- * Google News articles in the last two days, and, when asked (a YouTube
- * search costs 100 of the 10,000 free daily units), the week's most-viewed
- * videos on it. All free. Each platform that fails is left null.
- */
-export async function sizeTrend(s: Signal, opts: { youtube: boolean }): Promise<TrendSize> {
-  const query = trendQuery(s.title);
-  const india = s.region === "IN";
-  const twoDaysAgo = Date.now() - 2 * 86_400_000;
-  const [bsky, news, videos] = await Promise.all([
-    social.blueskyCount(query, 2).catch(() => null),
-    gnews.search(query, india)
-      .then((items) => items.filter((p) => p.createdAt && Date.parse(p.createdAt) >= twoDaysAgo).length)
-      .catch(() => null),
-    opts.youtube && yt.hasYouTube() ? yt.search(query, india).catch(() => null) : Promise.resolve(null),
-  ]);
-  const top = videos?.posts.slice().sort((a, b) => (b.views ?? 0) - (a.views ?? 0))[0];
-  return {
-    query,
-    bluesky: bsky?.count ?? null,
-    blueskyCapped: bsky?.capped,
-    news,
-    youtubeViews: videos ? videos.posts.reduce((a, p) => a + (p.views ?? 0), 0) : null,
-    youtubeTop: top && top.views ? { title: top.title, url: top.url, views: top.views } : null,
-  };
 }

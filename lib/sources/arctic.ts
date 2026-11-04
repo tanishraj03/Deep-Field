@@ -60,6 +60,7 @@ export interface ArcticPost {
   selftext?: string;
   over_18?: boolean;
   link_flair_text?: string | null;
+  author?: string;
 }
 
 async function call<T>(path: string, params: Record<string, string | number | undefined>): Promise<T> {
@@ -88,7 +89,7 @@ async function call<T>(path: string, params: Record<string, string | number | un
   throw new SourceError("Reddit archive unavailable");
 }
 
-const POST_FIELDS = "id,title,subreddit,score,num_comments,created_utc,selftext,over_18,link_flair_text";
+const POST_FIELDS = "id,title,subreddit,score,num_comments,created_utc,selftext,over_18,link_flair_text,author";
 
 export function searchPosts(p: {
   subreddit?: string; query?: string; after?: string; before?: string; limit?: number;

@@ -18,6 +18,7 @@ import type { CommunityVolume, NicheScan, Post, Signal, SignalsScan, SourceRun, 
 import { pool, shortQuery } from "@/lib/utils";
 import { attachLeftovers, clusterByRules, clusterWithAI, type Draft } from "./cluster";
 import { buildTopics, recencyWeight, rescore } from "./score";
+import { buildCreators } from "./creators";
 import { translateTopics } from "./translate";
 
 export const scanKey = (niche: string) => `scan:${niche}`;
@@ -68,7 +69,7 @@ function rank(p: Post): number {
  * collect huge comment counts without being a conversation about anything.
  * Left in, they top every niche.
  */
-const RECURRING = /\b(daily|weekly|monthly)\b.*\b(thread|megathread)\b|\bmega ?thread\b|simple questions|promotional content|self[- ]promo|\b(rate|moronic) monday\b|what are you (reading|watching|listening)/i;
+export const RECURRING = /\b(daily|weekly|monthly)\b.*\b(thread|megathread)\b|\bmega ?thread\b|simple questions|promotional content|self[- ]promo|\b(rate|moronic) monday\b|what are you (reading|watching|listening)/i;
 
 /** Keep the strongest posts, without letting one region crowd out the other. */
 function selectForClustering(posts: Post[]): Post[] {
@@ -244,6 +245,13 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
   const counted = await countWebMentions(topics);
   sources.push({ source: "Web mentions (Bluesky, Hacker News)", ok: counted > 0, count: counted });
   lap("web mentions");
+  // Who is behind it: YouTube channels, Reddit posters and Bluesky accounts (lib/pulse/creators.ts).
+  const creators = await buildCreators(niche, [...posts.values()]).catch((e) => {
+    sources.push({ source: "Creators", ok: false, count: 0, note: errMessage(e) });
+    return [];
+  });
+  if (creators.length) sources.push({ source: "Creators", ok: true, count: creators.length });
+  lap("creators");
   const keep = new Set(topics.flatMap((t) => t.postIds));
   const scan: NicheScan = {
     niche: niche.id,
@@ -259,6 +267,7 @@ export async function scanNiche(nicheId: string, opts: { ai?: boolean } = {}): P
     postsRead,
     model,
     aiNote,
+    creators,
   };
   await store.set(scanKey(niche.id), scan);
   await store.set(summaryKey(niche.id), summarize(scan)).catch(() => {});
@@ -289,21 +298,6 @@ async function countWebMentions(topics: Topic[]): Promise<number> {
   return ok;
 }
 
-/** X trends per region given numbers; the first few also get a YouTube search (100 quota units each). */
-const X_SIZED = 12;
-const X_YOUTUBE = 5;
-
-async function sizeXTrends(signals: Signal[]): Promise<number> {
-  const jobs = (["IN", "GLOBAL"] as const).flatMap((region) =>
-    signals.filter((s) => s.source === "x" && s.region === region).slice(0, X_SIZED).map((s, i) => ({ s, youtube: i < X_YOUTUBE })));
-  let ok = 0;
-  await pool(jobs, 4, async ({ s, youtube }) => {
-    s.size = await xtrends.sizeTrend(s, { youtube });
-    if (s.size.bluesky !== null || s.size.news !== null) ok++;
-  });
-  return ok;
-}
-
 export async function scanSignals(): Promise<SignalsScan> {
   const sources: SourceRun[] = [];
   const signals: Signal[] = [];
@@ -330,15 +324,12 @@ export async function scanSignals(): Promise<SignalsScan> {
     run("Google News US", () => gnews.topStories("US")),
   ]);
 
-  // X publishes no counts, so the top trends in each region are sized on
-  // platforms that do (lib/sources/xtrends.ts); and Instagram publishes no
-  // trends at all, so its trending Reels audio comes from CreatorDB's chart.
-  const [sized, instagramAudio] = await Promise.all([
-    sizeXTrends(signals),
-    creatordb.trendingAudio().catch((e) => { sources.push({ source: "Instagram trending audio (CreatorDB)", ok: false, count: 0, note: errMessage(e) }); return undefined; }),
-  ]);
+  // Instagram publishes no trends, so its trending Reels audio comes from CreatorDB's chart.
+  const instagramAudio = await creatordb.trendingAudio().catch((e) => {
+    sources.push({ source: "Instagram trending audio (CreatorDB)", ok: false, count: 0, note: errMessage(e) });
+    return undefined;
+  });
   if (instagramAudio) sources.push({ source: "Instagram trending audio (CreatorDB)", ok: true, count: instagramAudio.items.length });
-  sources.push({ source: "X trends sized (Bluesky, Google News, YouTube)", ok: sized > 0, count: sized });
 
   const scan: SignalsScan = { scannedAt: new Date().toISOString(), signals, sources, instagramAudio };
   await store.set(SIGNALS_KEY, scan);

@@ -13,7 +13,7 @@ import { bestOf, mentionsOf, topicIn, visibleTopics, volumeRows, weeklyPosts, ty
 import { DailyBars, RankBars, Sparkline } from "./charts";
 import { useRegion } from "./region";
 import { SuggestCommunity } from "./suggest-community";
-import { InstagramAudioPanel, XTrendsPanel } from "./trend-panels";
+import { InstagramAudioPanel } from "./trend-panels";
 import { ScanAllButton, ScanProgressPanel, useScanRunner } from "./scan-runner";
 import { TopicCard, TopicRow } from "./topic-card";
 import { Button, Card, EmptyState, Eyebrow, REGION_OPTIONS, Segmented, SOURCE_META, Stat } from "./ui";
@@ -97,14 +97,9 @@ export function PulseView({ scans, signals, initialNiche, prefs, researching }: 
       ) : (
         <Overview scans={scans} region={region} setNiche={setNiche} missing={missing} rankBy={rankBy} rankSwitch={rankSwitch} mine={mine}
           spiking={<>
-            {signals && (
-              <div className={cn("grid items-start gap-3", signals.instagramAudio?.items.length && "lg:grid-cols-[1.45fr_1fr]")}>
-                <XTrendsPanel signals={signals} region={region} />
-                {signals.instagramAudio && <InstagramAudioPanel data={signals.instagramAudio} />}
-              </div>
-            )}
             <Researching items={researching} />
-            {signals && <SpikingNow signals={signals} region={region} niche={null} withoutX />}
+            {signals && <SpikingNow signals={signals} region={region} niche={null} />}
+            {signals?.instagramAudio && <InstagramAudioPanel data={signals.instagramAudio} />}
           </>} />
       )}
     </div>
@@ -191,10 +186,8 @@ function Researching({ items }: { items: Researched[] }) {
   );
 }
 
-/** withoutX: on the overview, X has its own panel (XTrendsPanel), so it isn't repeated here. */
-function SpikingNow({ signals, region, niche, withoutX }: { signals: SignalsScan; region: RegionFilter; niche: string | null; withoutX?: boolean }) {
+function SpikingNow({ signals, region, niche }: { signals: SignalsScan; region: RegionFilter; niche: string | null }) {
   const list = signals.signals
-    .filter((s) => !withoutX || s.source !== "x")
     .filter((s) => region === "ALL" || s.region === region)
     .filter((s) => !niche || s.niche === niche);
   // Interleave sources so one feed cannot fill the strip.

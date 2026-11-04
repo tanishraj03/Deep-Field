@@ -51,6 +51,7 @@ function fromArctic(p: arctic.ArcticPost, regionHint?: RegionCode): Post {
     measured,
     snippet: p.selftext && !/^\[(removed|deleted)\]$/.test(p.selftext)
       ? truncate(stripHtml(decode(p.selftext)), 220) : undefined,
+    author: p.author,
   };
 }
 
@@ -85,7 +86,7 @@ async function oauthToken(): Promise<string> {
 interface ListingChild {
   data: {
     id: string; title: string; subreddit: string; score: number; num_comments: number;
-    created_utc: number; selftext?: string; over_18?: boolean; stickied?: boolean;
+    created_utc: number; selftext?: string; over_18?: boolean; stickied?: boolean; author?: string;
   };
 }
 
@@ -102,6 +103,7 @@ async function oauthListing(path: string): Promise<ListingChild["data"][]> {
 
 function fromListing(d: ListingChild["data"], rank?: number): Post {
   return {
+    author: d.author,
     id: `rd:${d.id}`,
     source: "reddit",
     title: stripHtml(decode(d.title)),

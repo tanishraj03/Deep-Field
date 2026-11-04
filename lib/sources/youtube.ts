@@ -15,7 +15,7 @@ export const hasYouTube = () => Boolean(currentKeys().youtube);
 
 interface Video {
   id: string;
-  snippet: { title: string; channelTitle: string; publishedAt: string; description?: string };
+  snippet: { title: string; channelTitle: string; channelId?: string; publishedAt: string; description?: string };
   statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
 }
 
@@ -41,6 +41,8 @@ function toPost(v: Video, region: RegionCode): Post {
     title: stripHtml(v.snippet.title),
     url: `https://www.youtube.com/watch?v=${v.id}`,
     community: v.snippet.channelTitle,
+    author: v.snippet.channelTitle,
+    authorId: v.snippet.channelId,
     region,
     createdAt: v.snippet.publishedAt,
     views: n(v.statistics?.viewCount),
@@ -62,10 +64,10 @@ export async function mostPopular(regionCode: "IN" | "US", categoryId?: string, 
 }
 
 /** Most-viewed videos on a topic from the past week. ~101 quota units. */
-export async function search(query: string, india: boolean): Promise<{ posts: Post[]; total: number }> {
+export async function search(query: string, india: boolean, max = 12): Promise<{ posts: Post[]; total: number }> {
   const after = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const params: Record<string, string> = {
-    part: "id", q: query, type: "video", order: "viewCount", maxResults: "12", publishedAfter: after,
+    part: "id", q: query, type: "video", order: "viewCount", maxResults: String(max), publishedAfter: after,
   };
   if (india) { params.regionCode = "IN"; params.relevanceLanguage = "en"; }
   const s = await yt<{ items?: { id: { videoId: string } }[]; pageInfo?: { totalResults?: number } }>("search", params);
@@ -110,4 +112,39 @@ export async function videoComments(post: Post, max = 20): Promise<Comment[]> {
         .slice(0, 3),
     };
   });
+}
+
+export interface ChannelInfo { id: string; subscribers: number | null; avatar: string | null; handle: string | null; country: string | null }
+
+/** Subscriber counts and avatars for up to 50 channels per call. 1 quota unit per call. */
+export async function channels(ids: string[]): Promise<Map<string, ChannelInfo>> {
+  const out = new Map<string, ChannelInfo>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 50) {
+    const r = await yt<{ items?: { id: string; snippet?: { customUrl?: string; country?: string; thumbnails?: { default?: { url?: string } } }; statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean } }[] }>(
+      "channels", { part: "snippet,statistics", id: unique.slice(i, i + 50).join(","), maxResults: "50" });
+    for (const c of r.items ?? []) {
+      out.set(c.id, {
+        id: c.id,
+        subscribers: c.statistics?.hiddenSubscriberCount || c.statistics?.subscriberCount === undefined ? null : Number(c.statistics.subscriberCount),
+        avatar: c.snippet?.thumbnails?.default?.url ?? null,
+        handle: c.snippet?.customUrl ?? null,
+        country: c.snippet?.country ?? null,
+      });
+    }
+  }
+  return out;
+}
+
+/** The week's most-viewed videos for a query in one country's results. ~101 quota units. */
+export async function searchRegion(query: string, regionCode: "IN" | "US", max = 25): Promise<Post[]> {
+  const after = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const s = await yt<{ items?: { id: { videoId: string } }[] }>("search", {
+    part: "id", q: query, type: "video", order: "viewCount", maxResults: String(max), publishedAfter: after,
+    regionCode, relevanceLanguage: "en",
+  });
+  const ids = (s.items ?? []).map((i) => i.id.videoId).filter(Boolean);
+  if (!ids.length) return [];
+  const v = await yt<{ items?: Video[] }>("videos", { part: "snippet,statistics", id: ids.join(",") });
+  return (v.items ?? []).map((x) => toPost(x, regionCode === "IN" ? "IN" : "GLOBAL"));
 }

@@ -26,8 +26,9 @@ const SCRIPTS: [RegExp, string][] = [
 
 /** Words common in one Latin-script language and rare in English titles. */
 const WORDS: [string, Set<string>][] = [
-  ["Spanish", new Set("el la los las del que qué por para con una uno está están cómo como pero más fue sobre este esta hoy también ya sin muy".split(" "))],
-  ["Portuguese", new Set("não é são com uma um para pelo pela mais isso está estão você muito sobre hoje também já".split(" "))],
+  ["Spanish", new Set("el la los las del de que qué por para con una uno está están cómo como pero más fue sobre este esta hoy también ya sin muy".split(" "))],
+  ["Portuguese", new Set("não é são com uma um para pelo pela mais isso está estão você muito sobre hoje também já de da do como o os".split(" "))],
+  ["Italian", new Set("il lo gli della delle dei di e per che non sono più come anche questo questa molto perché".split(" "))],
   ["French", new Set("le les des une est pour avec dans sur pas qui que ce cette sont aussi très mais".split(" "))],
   ["German", new Set("der die das und ist nicht mit ein eine für auf auch sich den dem wie noch".split(" "))],
   ["Indonesian", new Set("yang dan ini itu dengan untuk tidak dari ada akan juga sudah bisa kami".split(" "))],
@@ -50,6 +51,9 @@ export function languageOf(text: string): string {
     if (best.lang === "Arabic" && URDU.test(text)) return "Urdu";
     return best.lang;
   }
+  // Letters English doesn't use settle it for the two Romance languages most often seen.
+  if (/[ãõ]|ção\b|ções\b/i.test(text)) return "Portuguese";
+  if (/[ñ¿¡]/.test(text)) return "Spanish";
   const words = text.toLowerCase().normalize("NFC").split(/[^\p{L}]+/u).filter(Boolean);
   if (words.length < 3) return "English";
   let latin: { lang: string; hits: number } | null = null;
