@@ -171,6 +171,21 @@
   }
   @media (prefers-reduced-motion: reduce) { .shooting-star { display: none; } }
 
+  /* Loading: a sliding brand-gradient bar, and the mark fading in only if it takes a while. */
+  .loading-bar {
+    background: linear-gradient(90deg, rgb(var(--accent)), rgb(var(--ember)));
+    box-shadow: 0 0 12px rgb(var(--accent) / 0.6);
+    animation: loading-slide 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  @keyframes loading-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+  }
+  .loading-mark { opacity: 0; animation: loading-in 300ms ease 550ms forwards; }
+  .loading-mark > span { animation: loading-breathe 1.6s ease-in-out 550ms infinite; }
+  @keyframes loading-in { to { opacity: 1; } }
+  @keyframes loading-breathe { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(0.92); opacity: 0.55; } }
+
   /* Gradient headline text. */
   .text-gradient {
     background: linear-gradient(100deg, rgb(var(--ink)) 20%, rgb(var(--accent)) 60%, rgb(var(--ember)) 100%);
