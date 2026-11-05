@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, RefreshCw, X } from "lucide-react";
+import { Check, Loader2, RefreshCw, X } from "lucide-react";
 import { NICHES, nicheLabel } from "@/lib/niches";
 import { Button } from "./ui";
 
@@ -108,19 +108,48 @@ export function useScanRunner() {
   return { progress: p, run, reset: () => publish(idle) };
 }
 
+/**
+ * The scan button. Its progress panel stays out of the way: it shows while
+ * you hover over the button, or after a click until you click again or
+ * anywhere else. While a scan runs, clicking the button opens the progress
+ * rather than starting another scan.
+ */
 export function ScanAllButton({ stale, size = "md", label = "Scan everything" }: { stale?: string[]; size?: "sm" | "md"; label?: string }) {
   const { progress, run } = useScanRunner();
   const ids = stale?.length ? stale : NICHES.map((n) => n.id);
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pinned) return;
+    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setPinned(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setPinned(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
+  }, [pinned]);
+
+  const busy = progress.running;
+  const hasProgress = (busy || progress.log.length > 0) && progress.total > 0;
+  const onClick = () => {
+    if (busy) setPinned((p) => !p);
+    else run(ids, { signals: true });
+  };
+
   return (
-    <div className="relative">
-      <Button size={size} variant="secondary" loading={progress.running} onClick={() => run(ids, { signals: true })}>
-        {!progress.running && <RefreshCw className="h-3.5 w-3.5" />}
-        {progress.running ? `Scanning ${Math.min(progress.done + 1, progress.total)}/${progress.total}` : progress.stalled ? "Resume scan" : label}
+    <div ref={ref} className="relative" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <Button size={size} variant="secondary" onClick={onClick} aria-expanded={hasProgress ? hover || pinned : undefined}
+        title={busy ? "Show scan progress" : undefined}>
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+        {busy ? `Scanning ${Math.min(progress.done + 1, progress.total)}/${progress.total}` : progress.stalled ? "Resume scan" : label}
       </Button>
-      {/* Floats over the page so a running scan never pushes the layout down. */}
-      <div className="absolute right-0 top-full z-40 mt-2">
-        <ScanProgressPanel progress={progress} />
-      </div>
+      {/* Floats over the page so it never pushes the layout down. pt-2 keeps the hover alive across the gap. */}
+      {(hover || pinned) && hasProgress && (
+        <div className="absolute right-0 top-full z-40 pt-2">
+          <ScanProgressPanel progress={progress} />
+        </div>
+      )}
     </div>
   );
 }
@@ -131,7 +160,9 @@ export function ScanProgressPanel({ progress }: { progress: ScanProgress }) {
       {(progress.running || progress.log.length > 0) && progress.total > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+          // Solid, not glass: it floats over the page and has to read cleanly on top of it.
           className="card w-72 p-3 text-xs shadow-xl"
+          style={{ background: "rgb(var(--surface))" }}
         >
           <div className="mb-2 flex items-center justify-between">
             <span className="font-semibold">{progress.running ? `Scanning ${progress.current}…` : progress.stalled ? "Scan paused" : "Scan finished"}</span>
