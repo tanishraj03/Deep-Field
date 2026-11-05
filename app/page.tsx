@@ -1,5 +1,5 @@
 import { PulseView } from "@/components/pulse";
-import { requireUser } from "@/lib/auth";
+import { isAdmin, requireUser } from "@/lib/auth";
 import { loadSummaries } from "@/lib/pulse/scan";
 import { researchTrends } from "@/lib/research";
 
@@ -10,5 +10,5 @@ export default async function PulsePage({ searchParams }: { searchParams: Promis
   const [{ niche }, pulse, user, researching] = await Promise.all([
     searchParams, loadSummaries(), requireUser(), researchTrends().catch(() => []),
   ]);
-  return <PulseView scans={pulse.scans} signals={pulse.signals} initialNiche={niche ?? null} prefs={user.prefs} researching={researching} />;
+  return <PulseView scans={pulse.scans} signals={pulse.signals} initialNiche={niche ?? null} prefs={user.prefs} researching={researching} admin={isAdmin(user)} />;
 }

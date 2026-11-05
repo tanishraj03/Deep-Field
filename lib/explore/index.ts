@@ -128,7 +128,7 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
       sources.push({ source: "youtube", ok: true, total: ytR.value.posts.length, window: "7 days", note: "most-viewed uploads this week" });
     } else sources.push({ source: "youtube", ok: false, total: null, window: "7 days", note: ytR.error });
   } else {
-    sources.push({ source: "youtube", ok: false, total: null, window: "7 days", note: "Add YOUTUBE_API_KEY to include videos" });
+    sources.push({ source: "youtube", ok: false, total: null, window: "7 days", note: "Add a YouTube key in Keys to include videos" });
   }
 
   // News: GDELT counts every article; Google News is the fallback count when
@@ -140,10 +140,10 @@ export async function explore(rawQuery: string, region: RegionFilter, opts: { fr
     newsDaily = newsR.value.volume;
     add(newsR.value.articles);
     const week = days(7).reduce((a, d) => a + (newsDaily.get(d) ?? 0), 0);
-    sources.push({ source: "news", ok: true, total: week, window: "7 days", note: india ? "Indian publishers (GDELT)" : "worldwide publishers (GDELT)" });
+    sources.push({ source: "news", ok: true, total: week, window: "7 days", note: india ? "Indian publishers" : "worldwide publishers" });
   } else if (gnArticles.length) {
     for (const p of gnArticles) if (p.createdAt) newsDaily.set(p.createdAt.slice(0, 10), (newsDaily.get(p.createdAt.slice(0, 10)) ?? 0) + 1);
-    sources.push({ source: "news", ok: true, total: gnArticles.length, capped: gnArticles.length >= 100, window: "7 days", note: "Google News articles (GDELT was rate limiting)" });
+    sources.push({ source: "news", ok: true, total: gnArticles.length, capped: gnArticles.length >= 100, window: "7 days", note: "news articles" });
   } else sources.push({ source: "news", ok: false, total: null, window: "7 days", note: newsR.error });
 
   if (bskyR) {

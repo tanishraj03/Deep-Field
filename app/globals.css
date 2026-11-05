@@ -77,6 +77,16 @@
   }
 }
 
+/*
+  Very wide monitors (ultrawides, 1440p+ at 100% zoom) get a larger base size,
+  so the interface scales up instead of floating tiny in the middle. Every
+  size in the app is in rem, so this one step scales it all. Laptops and
+  ordinary monitors (up to ~2200 CSS px wide) are untouched.
+*/
+@media (min-width: 2200px) { html { font-size: 17px; } }
+@media (min-width: 2800px) { html { font-size: 19px; } }
+@media (min-width: 3400px) { html { font-size: 21px; } }
+
 @layer components {
   /*
     Cards are tinted glass over the ambient backdrop (components/ambient.tsx):

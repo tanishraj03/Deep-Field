@@ -10,7 +10,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
       <ul className="list-disc space-y-1.5 pl-5">
         <li>From Google sign-in: your name, email address and profile picture. Nothing else from your Google account.</li>
         <li>The username you pick and your answers to the sign-up questions (niches, audience, platforms and so on).</li>
-        <li>API keys you add. Each is encrypted (AES-256-GCM) before it is stored and is only ever used on the server for your own requests. It is never shown back to anyone, you included: the Keys page shows only its last four characters.</li>
+        <li>API keys you add. Each is encrypted before it is stored and is only ever used on the server for your own requests. It is never shown back to anyone, you included: the Keys page shows only its last four characters.</li>
         <li>Feedback you give: votes on verdicts, topics you mark as made, and the results and links you report for them.</li>
         <li>Counts of what you use (searches, chats, scans), when you last visited, and a log of sign-ins with the time, the approximate city and country your hosting provider reports, and your browser type. IP addresses are not kept.</li>
       </ul>
@@ -21,7 +21,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     body: (
       <ul className="list-disc space-y-1.5 pl-5">
         <li>Your assistant chats are kept in your own browser, not on DeepField&apos;s servers.</li>
-        <li>Explore searches are counted without your name: only a one-way fingerprint, so the same person isn&apos;t counted twice. A search is shown to others only once several different people have made it, and nobody can see who searched what.</li>
+        <li>Explore searches are counted without your name, in a way that can&apos;t be traced back to you. A search is shown to others only once several different people have made it, and nobody can see who searched what.</li>
         <li>No ads, no selling or sharing your data, no tracking across other sites.</li>
       </ul>
     ),
@@ -32,7 +32,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
       <ul className="list-disc space-y-1.5 pl-5">
         <li>Google, to sign you in.</li>
         <li>The AI provider whose model you use (Google Gemini, Groq, Mistral and so on), with your own key: your questions and the research behind them are sent to that provider under its terms.</li>
-        <li>The hosting and database services DeepField runs on (Vercel and Supabase).</li>
+        <li>The hosting providers DeepField runs on, which store its data.</li>
         <li>Public sources DeepField reads (Reddit, YouTube, Hacker News, news, Wikipedia, Bluesky, Mastodon and others). Nothing about you is sent to them.</li>
       </ul>
     ),
@@ -43,7 +43,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
   },
   {
     title: "Questions",
-    body: <>Write to <a href="mailto:tanish@yaas.studio" className="text-accent hover:underline">tanish@yaas.studio</a>.</>,
+    body: <>Write to <a href="mailto:woops.exe@gmail.com" className="text-accent hover:underline">woops.exe@gmail.com</a>.</>,
   },
 ];
 

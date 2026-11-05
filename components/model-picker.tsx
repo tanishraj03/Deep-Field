@@ -99,7 +99,7 @@ export function ModelPicker({ models, value, onChange }: { models: PublicModel[]
               </div>
             ))}
             <p className="px-2.5 pb-1.5 pt-2 text-[0.6875rem] leading-relaxed text-faint">
-              Models run on your own keys, kept encrypted on the server. Add or change them in <Link href="/keys" className="underline underline-offset-2 hover:text-ink">Keys</Link>.
+              Models run on your own keys, kept private to your account. Add or change them in <Link href="/keys" className="underline underline-offset-2 hover:text-ink">Keys</Link>.
             </p>
           </motion.div>
         )}

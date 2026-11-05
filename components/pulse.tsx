@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Radar, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, LayoutGrid, Radar, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import type { FeedPrefs } from "@/lib/prefs";
 import type { Researched } from "@/lib/research";
@@ -20,8 +20,10 @@ import { Button, Card, EmptyState, Eyebrow, REGION_OPTIONS, Segmented, SOURCE_ME
 
 const STALE_MS = 6 * 60 * 60_000;
 
-export function PulseView({ scans, signals, initialNiche, prefs, researching }: {
+export function PulseView({ scans, signals, initialNiche, prefs, researching, admin = false }: {
   scans: NicheScan[]; signals: SignalsScan | null; initialNiche: string | null; prefs: FeedPrefs; researching: Researched[];
+  /** Scan notes (a source failing, a model's limit) are for the admin, not everyone. */
+  admin?: boolean;
 }) {
   const { region, setRegion } = useRegion();
   const [niche, setNicheState] = useState<string | null>(initialNiche && NICHE_BY_ID.has(initialNiche) ? initialNiche : null);
@@ -85,7 +87,7 @@ export function PulseView({ scans, signals, initialNiche, prefs, researching }: 
 
       {niche ? (
         selected
-          ? <NicheDetail scan={selected} region={region} rankBy={rankBy} rankSwitch={rankSwitch} spiking={signals && <SpikingNow signals={signals} region={region} niche={niche} />} />
+          ? <NicheDetail admin={admin} scan={selected} region={region} rankBy={rankBy} rankSwitch={rankSwitch} spiking={signals && <SpikingNow signals={signals} region={region} niche={niche} />} />
           : (
             <EmptyState
               icon={Radar}
@@ -114,11 +116,13 @@ function Header({ region, setRegion, lastScan, read, action }: {
       <div>
         <h1 className="text-[1.75rem] font-semibold tracking-tight">Pulse</h1>
         <p className="mt-1 text-sm text-muted">
-          What the internet is talking about right now{lastScan ? <> · updated {relativeTime(lastScan)}</> : null}
-          {read ? <> · <span className="num">{compact(read)}</span> posts read</> : null}
+          <span className="hidden sm:inline">What the internet is talking about right now</span>
+          <span className="sm:hidden">What&apos;s being talked about</span>
+          {lastScan ? <> · updated {relativeTime(lastScan)}</> : null}
+          {read ? <span className="hidden sm:inline"> · <span className="num">{compact(read)}</span> posts read</span> : null}
         </p>
       </div>
-      <div className="flex flex-wrap items-start gap-2">
+      <div className="flex items-center gap-2 sm:flex-wrap sm:items-start">
         <Segmented value={region} onChange={setRegion} options={REGION_OPTIONS} layoutId="pulse-region" />
         {action}
       </div>
@@ -141,7 +145,8 @@ function Kpis({ scans, region }: { scans: NicheScan[]; region: RegionFilter }) {
   const hottest = [...topics].sort((a, b) => topicIn(b, region).heat - topicIn(a, region).heat)[0];
 
   return (
-    <div className="grid grid-cols-2 gap-y-5 border-y py-4 md:grid-cols-5 md:divide-x md:divide-hair/10 [&>*]:md:px-5 [&>*:first-child]:md:pl-0">
+    // Phones: one swipeable row of headline numbers, so the conversations start on the first screen.
+    <div className="no-scrollbar -mx-4 flex gap-7 overflow-x-auto border-y px-4 py-3 sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-5 md:gap-0 md:divide-x md:divide-hair/10 md:overflow-visible md:px-0 md:py-4 [&>*]:shrink-0 [&>*]:md:px-5 [&>*:first-child]:md:pl-0 max-md:[&>*>p:nth-child(3)]:hidden">
       <Stat label="Mentions" value={compact(totalMentions)}
         sub={<span title="Every post and comment in the grouped threads, plus matching posts on Bluesky and stories and comments on Hacker News this week. Platform counts only.">
           <span className="num">{compact(posts)}</span> threads · <span className="num">{compact(comments)}</span> comments{webMentions ? <> · <span className="num">{compact(webMentions)}</span> web posts</> : null}
@@ -367,11 +372,24 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
 
       {spiking}
 
-      <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-[1.05rem] font-semibold tracking-tight">Every niche at a glance</h2>
-          {missing.length > 0 && <span className="text-xs text-faint">{missing.length} niches not scanned yet</span>}
-        </div>
+      {/* Folded away like the audio panel: the hottest conversations above are the point; this is for browsing. */}
+      <Card className="p-0">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-hair/[0.07]">
+              <LayoutGrid className="h-3.5 w-3.5 text-muted" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.95rem] font-semibold tracking-tight">Every niche at a glance</span>
+              <span className="block truncate text-xs text-muted">
+                {board.slice(0, 4).map(({ s }) => NICHE_BY_ID.get(s.niche)?.label).join(" · ")}
+                {missing.length > 0 && <span className="text-faint"> · {missing.length} not scanned yet</span>}
+              </span>
+            </span>
+            <span className="shrink-0 text-xs text-faint group-open:hidden">Show</span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-faint transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="border-t p-3 sm:p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4">
           {(showAll ? board : board.slice(0, BOARD_PREVIEW)).map(({ s, topics }, i) => {
             const n = NICHE_BY_ID.get(s.niche)!;
@@ -407,12 +425,15 @@ function Overview({ scans, region, setNiche, missing, spiking, rankBy, rankSwitc
             </Button>
           </div>
         )}
-      </section>
+          </div>
+        </details>
+      </Card>
     </div>
   );
 }
 
-function NicheDetail({ scan, region, spiking, rankBy, rankSwitch }: {
+function NicheDetail({ admin, scan, region, spiking, rankBy, rankSwitch }: {
+  admin: boolean;
   scan: NicheScan; region: RegionFilter; spiking: React.ReactNode; rankBy: RankBy; rankSwitch: React.ReactNode;
 }) {
   const n = NICHE_BY_ID.get(scan.niche)!;
@@ -457,7 +478,7 @@ function NicheDetail({ scan, region, spiking, rankBy, rankSwitch }: {
         </Card>
       </div>
 
-      {(failing.length > 0 || scan.aiNote) && (
+      {admin && (failing.length > 0 || scan.aiNote) && (
         <details className="group text-xs text-muted">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 hover:text-ink [&::-webkit-details-marker]:hidden">
             <TriangleAlert className="h-3.5 w-3.5 text-ember" />
@@ -483,7 +504,7 @@ function NicheDetail({ scan, region, spiking, rankBy, rankSwitch }: {
       {spiking}
 
       <p className="text-center text-xs text-faint">
-        Grouped by {scan.model ?? "shared keywords"} · {scan.communities.length} communities read · <Link href="/settings" className="underline-offset-2 hover:underline">how this works</Link>
+        {scan.communities.length} communities read · <Link href="/help" className="underline-offset-2 hover:underline">how this works</Link>
       </p>
     </div>
   );

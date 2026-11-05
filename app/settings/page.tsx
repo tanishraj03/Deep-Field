@@ -12,7 +12,6 @@ import { loadSummaries } from "@/lib/pulse/scan";
 import { hasInstagram } from "@/lib/sources/instagram";
 import { hasRedditApi } from "@/lib/sources/reddit";
 import { getSchedule, nextRun } from "@/lib/schedule";
-import { store } from "@/lib/store";
 import type { SourceRun } from "@/lib/types";
 import { relativeTime } from "@/lib/utils";
 
@@ -21,12 +20,12 @@ export const metadata = { title: "Settings" };
 
 /** The data sources, with whether the signed-in user's keys cover the optional ones. Built per request. */
 const dataSources = () => [
-  { name: "Reddit", what: "Every niche's communities, India and global: threads, comments and upvotes, up to 300 posts per community per scan. Read through the Arctic Shift archive, or Reddit's own API when you add its keys.", key: hasRedditApi() ? "your Reddit app ✓" : "optional · add Reddit API keys for live counts", match: /^Reddit (API|\(archive\))/ },
-  { name: "YouTube", what: "Trending videos per category in India and the US (25 each), most-viewed uploads for a searched topic, and top comments.", key: hasYouTube() ? "your YouTube key ✓" : "YouTube key (free): not added", match: /^YouTube/ },
-  { name: "X (Twitter)", what: "What is trending on X in India and worldwide, read from getdaytrends.com's public tracker. X has no free API, and scraping X itself breaks its terms.", key: "none", match: /^X trending/ },
+  { name: "Reddit", what: "Every niche's communities, India and global: threads, comments and upvotes. Add Reddit API keys for live counts on brand-new threads.", key: hasRedditApi() ? "your Reddit app ✓" : "optional · add Reddit API keys for live counts", match: /^Reddit (API|\(archive\))/ },
+  { name: "YouTube", what: "Trending videos in India and the US, the most-viewed videos on a topic you search, and top comments.", key: hasYouTube() ? "your YouTube key ✓" : "YouTube key (free): not added", match: /^YouTube/ },
+  { name: "X (Twitter)", what: "What's trending on X in India and worldwide, in the Spiking now strip on Pulse.", key: "none", match: /^X trending/ },
   { name: "Instagram", what: "Top posts for a hashtag with likes and comments, through Meta's official API and your own Business or Creator account. Used by Explore; Meta allows 30 hashtags a week.", key: hasInstagram() ? "your Instagram token ✓" : "optional · Instagram token + user id", match: null, off: !hasInstagram() },
   { name: "Bluesky · Mastodon", what: "Trending topics, hashtags and shared links on the open social web, plus Bluesky post search with likes and replies for any topic.", key: "none", match: /^(Bluesky|Mastodon)/ },
-  { name: "News", what: "Google News top stories in India and the US, sized by how many outlets cover them; GDELT and Google News article counts for a searched topic.", key: "none", match: /^Google News/ },
+  { name: "News", what: "Top stories in India and the US, sized by how many outlets cover them, and how much coverage a searched topic is getting.", key: "none", match: /^Google News/ },
   { name: "Hacker News", what: "Tech front page and topic search with points and comments.", key: "none", match: /^Hacker News/ },
   { name: "Lemmy", what: "The open, federated Reddit alternative: top posts for a searched topic with real votes and comments.", key: "none", match: null },
   { name: "Wikipedia", what: "Most-read pages in India and worldwide yesterday; a topic's daily views.", key: "none", match: /^Wikipedia/ },
@@ -37,8 +36,8 @@ function health(runs: SourceRun[]) {
   if (!runs.length) return { icon: Minus, tone: "text-faint", label: "not used yet" };
   const ok = runs.filter((r) => r.ok).length;
   if (ok === runs.length) return { icon: Check, tone: "text-rise", label: `working · ${runs.reduce((a, r) => a + r.count, 0)} items last scans` };
-  if (ok === 0) return { icon: X, tone: "text-fall", label: runs.find((r) => r.note)?.note ?? "failing" };
-  return { icon: Check, tone: "text-ember", label: `${ok}/${runs.length} OK · ${runs.find((r) => !r.ok)?.note ?? ""}` };
+  if (ok === 0) return { icon: X, tone: "text-fall", label: "not answering right now" };
+  return { icon: Check, tone: "text-ember", label: "working, with some gaps in the last scans" };
 }
 
 export default async function SettingsPage() {
@@ -50,7 +49,7 @@ export default async function SettingsPage() {
     bg: backgroundModel(),
     owner: isAdmin(user),
   }));
-  const [pulse, storage, schedule] = await Promise.all([loadSummaries(), store.status(), getSchedule()]);
+  const [pulse, schedule] = await Promise.all([loadSummaries(), getSchedule()]);
   const runs = [...pulse.scans.flatMap((s) => s.sources), ...(pulse.signals?.sources ?? [])];
   const byNiche = new Map(pulse.scans.map((s) => [s.niche, s]));
 
@@ -93,7 +92,7 @@ export default async function SettingsPage() {
           })}
         </Card>
         <p className="mt-2 text-xs text-faint">
-          Reddit counts from the archive settle ~36 hours after posting; newer threads count as volume and are labelled. Nothing is estimated: a number we do not have is left blank.
+          Reddit's upvote and comment counts reach DeepField about 36 hours after a thread is posted; newer threads count towards a conversation's size and are labelled. Nothing is estimated: a number a platform didn't report is left blank.
         </p>
       </section>
 
@@ -125,7 +124,6 @@ export default async function SettingsPage() {
       <section>
         <div className="mb-3 flex items-baseline justify-between">
           <Eyebrow>Niches · {NICHES.length}</Eyebrow>
-          <span className="text-xs text-faint">Storage: {storage.backend === "supabase" ? "Supabase" : "local file"}{storage.durable ? "" : " (not durable)"}</span>
         </div>
         <Card className="grid gap-px overflow-hidden bg-hair/[0.06] sm:grid-cols-2 lg:grid-cols-4">
           {NICHES.map((n) => {
@@ -143,7 +141,6 @@ export default async function SettingsPage() {
             );
           })}
         </Card>
-        {storage.note && storage.backend !== "supabase" && <p className="mt-2 text-xs text-ember">{storage.note}</p>}
       </section>
 
       <section>

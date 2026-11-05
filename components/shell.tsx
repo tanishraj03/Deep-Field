@@ -143,6 +143,8 @@ function AccountMenu({ account, compact, rail }: { account: Account; compact?: b
             <div className="px-2.5 pb-2 pt-1.5">
               <p className="truncate text-[0.8125rem] font-semibold">{account.name}</p>
               <p className="truncate text-[0.6875rem] text-faint">{account.email}{account.admin ? " · admin" : ""}</p>
+              {/* Phones have no sidebar, so the theme switch lives here. */}
+              {compact && <div className="mt-2.5 flex items-center justify-between"><span className="text-[0.75rem] text-muted">Appearance</span><ThemeSwitch /></div>}
             </div>
             {items.map((i) => (
               <Link key={i.href} href={i.href} role="menuitem"
@@ -271,9 +273,9 @@ export function Shell({ children, account, announcement = null, initialCollapsed
         </div>
       </aside>
 
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-canvas/80 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-canvas/80 px-4 py-2.5 backdrop-blur-xl lg:hidden" style={{ paddingTop: "max(0.625rem, env(safe-area-inset-top))" }}>
         <Logo />
-        <div className="flex items-center gap-1"><ThemeSwitch /><AccountMenu account={account} compact /></div>
+        <AccountMenu account={account} compact />
       </header>
 
       <main className={cn("min-w-0 flex-1", fullBleed ? "" : "px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8 3xl:px-14")}>

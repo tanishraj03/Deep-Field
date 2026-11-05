@@ -94,6 +94,7 @@ export function Assistant({ models, defaultModel, initialContext, contextLabel, 
   const active = chats.find((c) => c.id === activeId) ?? null;
 
   useEffect(() => {
+    if (!active?.messages.length) return;
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [active?.messages]);
 
@@ -351,7 +352,7 @@ function ContextChip({ label }: { label: string }) {
 
 function Welcome({ context, onPick, noModels }: { context: string | null; onPick: (p: string) => void; noModels: boolean }) {
   return (
-    <div className="pt-[6vh] duration-500 animate-in fade-in slide-in-from-bottom-2">
+    <div className="pt-2 duration-500 animate-in fade-in slide-in-from-bottom-2 sm:pt-[6vh]">
       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-ink text-canvas">
         <Sparkles className="h-5 w-5" />
       </span>

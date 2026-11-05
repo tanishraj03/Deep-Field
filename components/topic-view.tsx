@@ -71,7 +71,6 @@ export function TopicView({ topic, scan }: { topic: Topic; scan: NicheScan }) {
               <Badge tone="outline">{n?.label}</Badge>
               <SentimentBadge s={topic.sentiment} />
               <Delta isNew={topic.isNew} delta={topic.heatDelta} />
-              {topic.groupedBy === "rules" && <Badge tone="outline">grouped by keyword</Badge>}
               <VerdictBadge verdict={topic.verdict} />
             </div>
             <h1 className="mt-3 text-[1.625rem] font-semibold leading-tight tracking-tight">{topic.title}</h1>

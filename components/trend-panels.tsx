@@ -42,7 +42,7 @@ function IndiaColumn({ data }: { data: NonNullable<SignalsScan["indiaAudio"]> })
           </li>
         ))}
       </ol>
-      <Source href={data.url}>Spotify India&apos;s daily chart: Instagram has no India chart, and Indian Reels run on these songs</Source>
+      <Source href="https://charts.spotify.com/charts/view/regional-in-daily/latest">Spotify India&apos;s daily chart: Instagram has no India chart, and Indian Reels run on these songs</Source>
     </div>
   );
 }

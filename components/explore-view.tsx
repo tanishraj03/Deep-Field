@@ -224,11 +224,14 @@ function Result({ result, insight, insightState, insightError, onRefresh, onRetr
                 <>
                   <p className="num mt-1.5 text-xl font-semibold">{compact(s.total)}{s.capped ? "+" : ""}</p>
                   <p className="mt-0.5 line-clamp-2 text-[0.6875rem] text-faint">
-                    {UNIT[s.source] ?? "posts"} · {s.note ?? s.window}
+                    {UNIT[s.source] ?? "posts"} · {s.note && !/fail|error|http|rate|timeout|limit/i.test(s.note) ? s.note : s.window}
                   </p>
                 </>
               ) : (
-                <p className="mt-1.5 line-clamp-3 text-[0.6875rem] text-faint">{s.note ?? "unavailable"}</p>
+                <p className="mt-1.5 line-clamp-3 text-[0.6875rem] text-faint">
+                  {/* Keep notes people can act on; anything else is an internal error, said plainly. */}
+                  {s.note && /\bKeys\b|key in/.test(s.note) ? s.note : "Couldn't reach it this time"}
+                </p>
               )}
             </div>
           ))}

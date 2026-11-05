@@ -142,7 +142,7 @@ export function ScanAllButton({ stale, size = "md", label = "Scan everything" }:
       <Button size={size} variant="secondary" onClick={onClick} aria-expanded={hasProgress ? hover || pinned : undefined}
         title={busy ? "Show scan progress" : undefined}>
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        {busy ? `Scanning ${Math.min(progress.done + 1, progress.total)}/${progress.total}` : progress.stalled ? "Resume scan" : label}
+        {busy ? `Scanning ${Math.min(progress.done + 1, progress.total)}/${progress.total}` : <span className="max-sm:sr-only">{progress.stalled ? "Resume scan" : label}</span>}
       </Button>
       {/* Floats over the page so it never pushes the layout down. pt-2 keeps the hover alive across the gap. */}
       {(hover || pinned) && hasProgress && (

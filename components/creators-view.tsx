@@ -38,9 +38,9 @@ function Column({ title, region, list, platform }: { title: string; region: Regi
               <span className="num w-4 shrink-0 pt-2 text-right text-xs text-faint">{i + 1}</span>
               <Avatar c={c} />
               <div className="min-w-0 flex-1">
-                <a href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 truncate text-[0.875rem] font-medium hover:text-accent">
+                <a href={c.url} target="_blank" rel="noreferrer" className="flex flex-col text-[0.875rem] font-medium hover:text-accent sm:flex-row sm:items-center sm:gap-1">
                   <span className="truncate">{c.name}</span>
-                  {c.followers !== null && platform.followers && <span className="num shrink-0 text-xs font-normal text-faint">· {compact(c.followers)} {platform.followers}</span>}
+                  {c.followers !== null && platform.followers && <span className="num shrink-0 text-[0.6875rem] font-normal text-faint sm:text-xs"><span className="max-sm:hidden">· </span>{compact(c.followers)} {platform.followers}</span>}
                 </a>
                 <p className="num mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
                   <span>{compact(c.reach)} {platform.reach} · {c.posts} {c.posts === 1 ? platform.posts[0] : platform.posts[1]}</span>
@@ -113,11 +113,11 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Segmented value={period} onChange={setPeriod} layoutId="creators-period" options={[
+          <Segmented value={period} onChange={setPeriod} layoutId="creators-period" size="sm" options={[
             { value: "week", label: "This week" },
             { value: "month", label: "This month" },
           ]} />
-          <Segmented value={region} onChange={setRegion} options={REGION_OPTIONS} layoutId="creators-region" />
+          <Segmented value={region} onChange={setRegion} options={REGION_OPTIONS} layoutId="creators-region" size="sm" />
         </div>
       </div>
 

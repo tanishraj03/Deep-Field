@@ -66,7 +66,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="relative flex min-h-dvh items-center overflow-hidden">
       <Ambient variant="hero" />
 
-      <div className="mx-auto grid w-full max-w-[76rem] items-center gap-12 px-6 py-12 sm:px-10 lg:grid-cols-2 lg:gap-10">
+      <div className="mx-auto grid w-full max-w-[76rem] items-center gap-12 px-6 py-12 sm:px-10 lg:grid-cols-2 lg:gap-10 [@media(max-height:720px)]:py-6">
         <div className="relative z-10 mx-auto w-full max-w-[34rem] lg:mx-0">
           <div className="flex items-center gap-3.5">
             <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ink shadow-[0_0_48px_-6px_rgb(var(--accent)/0.7)]">
@@ -77,7 +77,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </div>
 
           {reach.length > 0 && (
-            <p className="card mt-12 inline-flex items-center gap-2 rounded-pill px-3.5 py-1.5 text-xs text-muted">
+            <p className="card mt-12 [@media(max-height:720px)]:mt-6 inline-flex items-center gap-2 rounded-pill px-3.5 py-1.5 text-xs text-muted">
               <span className="relative flex h-2 w-2 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rise opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-rise" />
@@ -95,16 +95,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             </p>
           )}
 
-          <h1 className={`${reach.length ? "mt-5" : "mt-12"} text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.03em] sm:text-[3.25rem]`}>
+          <h1 className={`${reach.length ? "mt-5" : "mt-12"} text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.03em] sm:text-[3.25rem] [@media(max-height:720px)]:text-[2.15rem]`}>
             Know what to make <span className="text-gradient">before everyone else does.</span>
           </h1>
-          <p className="mt-5 text-[1.05rem] leading-relaxed text-muted">
+          <p className="mt-5 text-[1.05rem] leading-relaxed text-muted [@media(max-height:720px)]:mt-3 [@media(max-height:720px)]:text-[0.95rem]">
             DeepField helps you decide what to post next. It keeps an eye on Reddit, YouTube, X and the news,
             spots the topics people in your niche are starting to talk about, and tells you which ones are worth
             turning into content.
           </p>
 
-          <div className="mt-9 max-w-[24rem]">
+          <div className="mt-9 max-w-[24rem] [@media(max-height:720px)]:mt-5">
             {ready ? (
               <a href={href}
                 className="press group relative flex h-12 w-full items-center justify-center gap-3 rounded-pill bg-ink text-[0.9375rem] font-medium text-canvas shadow-[0_10px_40px_-10px_rgb(var(--accent)/0.8)] transition hover:shadow-[0_14px_50px_-8px_rgb(var(--accent)/0.95)]">
@@ -113,11 +113,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               </a>
             ) : (
               <div className="card p-4 text-sm">
-                <p className="font-medium">Google sign-in isn&apos;t set up on this server yet.</p>
-                <p className="mt-1.5 text-muted">
-                  Add <code className="rounded bg-hair/10 px-1">GOOGLE_CLIENT_ID</code>, <code className="rounded bg-hair/10 px-1">GOOGLE_CLIENT_SECRET</code> and{" "}
-                  <code className="rounded bg-hair/10 px-1">AUTH_SECRET</code> to the environment, then restart. The README has the steps.
-                </p>
+                <p className="font-medium">Sign-in is briefly unavailable.</p>
+                <p className="mt-1.5 text-muted">Please try again in a little while.</p>
               </div>
             )}
             {error && error !== "setup" && (
