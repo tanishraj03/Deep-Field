@@ -92,7 +92,7 @@ Pressing **Rescan** or **Rescan all** starts a job on the server (`lib/scan-jobs
 
 ## Daily scan
 
-A GitHub Actions workflow (`.github/workflows/scan.yml`) wakes hourly and asks the app whether today's scan is due; the time is set in **Settings → Daily scan** (default 9:00 AM IST). It needs two repository secrets: `APP_URL` (the deployed site) and `CRON_SECRET` (the same value as in Vercel). It calls the app with that secret instead of a sign-in, and scans with the server's keys. Only the admin can change the time.
+Vercel Cron (`vercel.json`) calls `/api/cron/daily` once a day at 9:00 AM IST, and the GitHub workflow (`.github/workflows/scan.yml`) calls the same endpoint hourly as a backup, since GitHub's scheduler often runs hours late. The first call at or after the hour set in the admin dashboard starts the scan as a server-side job on the server's own keys (`lib/scan-jobs.ts`); later calls that day find it claimed. Both need `CRON_SECRET` (set in Vercel, and as a GitHub Actions secret with `APP_URL`). Running the workflow by hand always scans: everything, or just the niches named.
 
 ## Deploy
 

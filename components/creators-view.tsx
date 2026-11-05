@@ -6,7 +6,8 @@ import { NICHE_BY_ID, NICHES } from "@/lib/niches";
 import type { Creator, CreatorPlatform, RegionCode } from "@/lib/types";
 import { cn, compact, relativeTime } from "@/lib/utils";
 import { useRegion } from "./region";
-import { Card, EmptyState, Flag, REGION_OPTIONS, Segmented, SOURCE_META } from "./ui";
+import { useScanRunner } from "./scan-runner";
+import { Button, Card, EmptyState, Flag, REGION_OPTIONS, Segmented, SOURCE_META } from "./ui";
 
 const PLATFORMS: { id: CreatorPlatform; label: string; reach: string; posts: [string, string]; followers: string | null }[] = [
   { id: "youtube", label: "YouTube", reach: "views", posts: ["trending video", "trending videos"], followers: "subscribers" },
@@ -91,7 +92,13 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
   };
   const [period, setPeriod] = useState<Period>("week");
   const data = byNiche[niche];
-  const creators = (period === "week" ? data?.week : data?.month) ?? [];
+  const raw = (period === "week" ? data?.week : data?.month) ?? [];
+  // Lists made before creators were scored also placed them by an older,
+  // wrong rule (a US channel on India's chart counted as Indian). Don't show
+  // them: say they're being refreshed, and offer to rescan now.
+  const outdated = raw.length > 0 && raw.every((c) => c.score === undefined);
+  const creators = outdated ? [] : raw;
+  const { progress, run } = useScanRunner();
   // The month view is built up from daily scans; say how much of a month it covers so far.
   const covered = data?.since ? Math.max(1, Math.round((Date.now() - Date.parse(data.since)) / 86_400_000)) : 0;
   const regions = (region === "ALL" ? ["IN", "GLOBAL"] : [region]) as RegionCode[];
@@ -131,8 +138,22 @@ export function CreatorsView({ byNiche, initialNiche, mine }: {
         </p>
       )}
       {!creators.length ? (
-        <EmptyState icon={Users} title={`No creators for ${NICHE_BY_ID.get(niche)?.label} yet`}
-          body="Creators are worked out when a niche is scanned. They'll appear here after its next scan." />
+        <EmptyState icon={Users}
+          title={outdated ? `${NICHE_BY_ID.get(niche)?.label} creators are being refreshed` : `No creators for ${NICHE_BY_ID.get(niche)?.label} yet`}
+          body={outdated
+            ? "This list was made before creators were scored and placed by country, so it's hidden until the niche's next scan. Rescan it now, or it refreshes with the daily scan."
+            : "Creators are worked out when a niche is scanned. They'll appear here after its next scan."}
+          action={
+            <div className="flex flex-col items-center gap-2">
+              <Button variant="primary" loading={progress.running} onClick={() => run([niche])}>
+                {progress.running ? "Scanning…" : `Rescan ${NICHE_BY_ID.get(niche)?.label}`}
+              </Button>
+              {!progress.running && progress.log.some((l) => !l.ok) && (
+                <p className="text-xs text-fall">{progress.log.find((l) => !l.ok)?.label}: {progress.log.find((l) => !l.ok)?.detail}</p>
+              )}
+              {progress.running && <p className="text-xs text-faint">Takes about a minute. It runs on the server, so you can leave this page.</p>}
+            </div>
+          } />
       ) : (
         <div className="space-y-4">
           {PLATFORMS.map((p) => {

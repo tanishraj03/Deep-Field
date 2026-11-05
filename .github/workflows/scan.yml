@@ -1,10 +1,10 @@
 name: DeepField daily scan
 
-# Wakes every hour and asks the app whether today's scan is due. The time is
-# set in the app (Settings → Daily scan, default 9:00 AM IST); the app answers
-# "yes" once a day, at the first wake at or after that hour. Each niche is
-# scanned in its own request, since one fits inside a serverless time limit
-# and the whole catalogue does not. Running it by hand always scans.
+# A backup for Vercel Cron (vercel.json). Wakes every hour (GitHub often runs
+# it hours late) and asks the app to start today's scan; the app starts it
+# once a day, at the first call at or after the hour set in the admin
+# dashboard (default 9:00 AM IST), and runs it on the server itself. Run by
+# hand, it always scans: everything, or just the niches you name.
 on:
   schedule:
     - cron: "7 * * * *"   # hourly, at :07 (off the busy top of the hour)
@@ -22,7 +22,7 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - name: Scan
         env:
@@ -38,25 +38,23 @@ jobs:
           APP_URL="${APP_URL%/}"
           AUTH="Authorization: Bearer ${CRON_SECRET}"
 
-          if [ "$EVENT" = "schedule" ]; then
-            CLAIM=$(curl -s -X POST "${APP_URL}/api/schedule" -H "$AUTH" --max-time 30)
-            echo "Schedule: $CLAIM"
-            DUE=$(echo "$CLAIM" | python3 -c "import json,sys;print(json.load(sys.stdin).get('due', False))" 2>/dev/null || echo "False")
-            if [ "$DUE" != "True" ]; then echo "Not time yet."; exit 0; fi
+          # Usual case: ask the app to start today's scan. It runs on the server,
+          # one niche per request, so this step finishes in seconds. Vercel Cron
+          # calls the same endpoint; whichever comes first after the set hour wins.
+          if [ -z "${ONLY:-}" ]; then
+            FORCE=""; [ "$EVENT" = "workflow_dispatch" ] && FORCE="?force=1"
+            RES=$(curl -s "${APP_URL}/api/cron/daily${FORCE}" -H "$AUTH" --max-time 60)
+            echo "Daily scan: $RES" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "$RES" | python3 -c "import json,sys;sys.exit(0 if json.load(sys.stdin).get('ok') else 1)"
+            exit $?
           fi
 
-          if [ -n "${ONLY:-}" ]; then
-            NICHES=$(echo "$ONLY" | tr ',' ' ')
-          else
-            NICHES=$(curl -s "${APP_URL}/api/scan" -H "$AUTH" | python3 -c "import json,sys;print(' '.join(n['id'] for n in json.load(sys.stdin)['niches']))")
-          fi
-          if [ -z "$NICHES" ]; then echo "::error::Could not list niches from ${APP_URL}/api/scan"; exit 1; fi
-
+          # Run by hand for named niches: scan just those, here, one at a time.
+          NICHES=$(echo "$ONLY" | tr ',' ' ')
           echo "### DeepField scan" >> "$GITHUB_STEP_SUMMARY"
           FAILED=0
-          for N in signals $NICHES; do
-            if [ "$N" = "signals" ]; then Q="signals=1"; else Q="niche=$N"; fi
-            HTTP=$(curl -s -o out.json -w "%{http_code}" -X POST "${APP_URL}/api/scan?${Q}" -H "$AUTH" --max-time 295)
+          for N in $NICHES; do
+            HTTP=$(curl -s -o out.json -w "%{http_code}" -X POST "${APP_URL}/api/scan?niche=$N" -H "$AUTH" --max-time 295)
             LINE=$(python3 -c "import json;d=json.load(open('out.json'));print(d.get('detail') or d.get('error') or '')" 2>/dev/null || echo "")
             echo "- \`$N\` → HTTP $HTTP $LINE" | tee -a "$GITHUB_STEP_SUMMARY"
             [ "$HTTP" -ge 200 ] && [ "$HTTP" -lt 300 ] || FAILED=$((FAILED+1))

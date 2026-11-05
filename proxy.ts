@@ -12,7 +12,7 @@ const OPEN = ["/login", "/privacy", "/api/auth/"];
 /** Server-side scan steps carry their own signed token (lib/scan-jobs.ts) instead of a session. */
 const SIGNED = ["/api/scan/step"];
 /** The scheduler calls these with CRON_SECRET instead of a session. */
-const CRON = ["/api/scan", "/api/schedule"];
+const CRON = ["/api/scan", "/api/schedule", "/api/cron/"];
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;

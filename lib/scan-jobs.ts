@@ -2,8 +2,8 @@ import { backgroundModel } from "@/lib/ai/models";
 import { getUser, isAdmin, keysFor, type User } from "@/lib/auth/users";
 import { sign, unsign } from "@/lib/auth/session";
 import { config } from "@/lib/config";
-import { runWithKeys } from "@/lib/keys";
-import { NICHE_BY_ID, nicheLabel } from "@/lib/niches";
+import { envKeys, runWithKeys } from "@/lib/keys";
+import { NICHE_BY_ID, NICHES, nicheLabel } from "@/lib/niches";
 import { getPlatform } from "@/lib/platform";
 import { scanKey, scanNiche, scanSignals, SIGNALS_KEY } from "@/lib/pulse/scan";
 import { store } from "@/lib/store";
@@ -36,6 +36,12 @@ export interface ScanJob {
 }
 
 const jobKey = (uid: string) => `scanjob:${uid}`;
+
+/**
+ * The daily scan's job: run on the server's own keys, not anyone's account,
+ * and not held back by the per-niche cooldown, like the scheduler always was.
+ */
+export const SYSTEM_UID = "system";
 /** A step that hasn't reported back in this long has died (a crash or a time limit): the job can be resumed. */
 export const STALL_MS = 6 * 60_000;
 
@@ -76,6 +82,18 @@ export async function startJob(user: User, niches: string[], signals: boolean, o
   const job: ScanJob = { id: crypto.randomUUID(), uid: user.id, items, results: [], status: items.length ? "running" : "done", startedAt: now, updatedAt: now, origin };
   await store.set(jobKey(user.id), job);
   if (items.length) await kick(job);
+  return job;
+}
+
+/** Start the daily scan of every niche and the signals, unless one is already running. */
+export async function startSystemJob(origin: string): Promise<ScanJob> {
+  const current = await getJob(SYSTEM_UID);
+  if (current?.status === "running" && !isStalled(current)) return current;
+  const now = new Date().toISOString();
+  const items: JobItem[] = [{ id: "signals", label: "Spiking searches & pages" }, ...NICHES.map((n) => ({ id: n.id, label: n.label }))];
+  const job: ScanJob = { id: crypto.randomUUID(), uid: SYSTEM_UID, items, results: [], status: "running", startedAt: now, updatedAt: now, origin };
+  await store.set(jobKey(SYSTEM_UID), job);
+  await kick(job);
   return job;
 }
 
@@ -122,8 +140,17 @@ export async function runStep(jid: string, uid: string): Promise<void> {
     await store.set(jobKey(uid), { ...job, status: "done", updatedAt: new Date().toISOString() });
     return;
   }
-  const user = await getUser(uid);
   let result: JobResult;
+  if (uid === SYSTEM_UID) {
+    try {
+      const r = await runWithKeys(envKeys(), () => scanItem(item.id, { ignoreCooldown: true }));
+      result = { ...item, ok: r.ok, detail: r.detail };
+    } catch (e) {
+      result = { ...item, ok: false, detail: (e as Error).message.slice(0, 160) };
+    }
+    return finish(jid, uid, result);
+  }
+  const user = await getUser(uid);
   if (!user || user.suspended) {
     result = { ...item, ok: false, detail: "account not available" };
   } else {
@@ -141,6 +168,11 @@ export async function runStep(jid: string, uid: string): Promise<void> {
       result = { ...item, ok: false, detail: (e as Error).message.slice(0, 160) };
     }
   }
+  return finish(jid, uid, result);
+}
+
+/** Record one item's result and start the next step, or close the job. */
+async function finish(jid: string, uid: string, result: JobResult): Promise<void> {
   // Re-read in case the job was replaced while this item scanned.
   const latest = await getJob(uid);
   if (!latest || latest.id !== jid) return;
